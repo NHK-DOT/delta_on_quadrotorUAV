@@ -1,0 +1,30 @@
+{
+  "sensor": "WT61C",
+  "port": "COM4",
+  "baudrate": 9600,
+  "timestamp_unix": 1776432670.2689464,
+  "timestamp_iso": "2026-04-17T21:31:10.268",
+  "temperature_c": 43.73235294117647,
+  "sample_count": 14,
+  "sample_rate_hz": 9.3,
+  "accel_g": {
+    "x": 0.007812,
+    "y": -0.001465,
+    "z": 1.002441
+  },
+  "gyro_dps": {
+    "x": 0.0,
+    "y": 0.0,
+    "z": 0.0
+  },
+  "angles_deg": {
+    "roll": -0.10437,
+    "pitch": -0.472412,
+    "yaw": -9.448242
+  },
+  "raw_payloads": {
+    "accel": "10 00 FD FF 05 08 F0 09",
+    "gyro": "00 00 00 00 00 00 F0 09",
+    "angle": "ED FF AA FF 48 F9 91 46"
+  }
+}

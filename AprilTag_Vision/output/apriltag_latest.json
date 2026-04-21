@@ -1,0 +1,26 @@
+{
+  "timestamp_unix": 1776524746.671174,
+  "camera": {
+    "index": 1,
+    "backend": "DSHOW",
+    "width": 1920,
+    "height": 1080
+  },
+  "tag_family": "tag36h11",
+  "tag_size_m": 0.031,
+  "estimation_mode": "calibrated_pose",
+  "performance_profile": "speed",
+  "detect_scale": 0.5,
+  "refine": "none",
+  "roi_tracking": true,
+  "roi_detect_scale": 1.0,
+  "full_frame_interval": 3,
+  "accel": "none",
+  "async_capture": true,
+  "center_crop": {
+    "width": 0,
+    "height": 0
+  },
+  "fps": 5.025139532706149,
+  "detections": []
+}
