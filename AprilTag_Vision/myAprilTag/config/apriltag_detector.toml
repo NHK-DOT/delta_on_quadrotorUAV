@@ -1,0 +1,142 @@
+# AprilTag 检测默认配置文件。
+# 直接修改这里的参数，然后运行：
+# python src\apriltag_usb_detector.py
+
+[general]
+# 启动时是否打印解析后的完整配置。
+print_config = false
+
+# 是否关闭图形窗口，只输出 JSON 和终端状态。
+no_gui = false
+
+# 终端状态打印频率，单位 Hz。
+status_hz = 1.0
+
+# 运行时长，单位秒。0 表示一直运行到你按 q。
+duration = 0.0
+
+[camera]
+# USB 摄像头索引，通常第一个摄像头是 0。
+camera_index = 1
+
+# 相机打开后端。Windows 常用 dshow，auto 会自动尝试多个后端。
+backend = "dshow"
+
+# 相机像素格式。这里强制优先请求 mjpg 压缩传输路径。
+pixel_format = "mjpg"
+
+# 严格像素格式检查。请求 mjpg 时，只接受 mjpg 本身或驱动解码后的 RGB24。
+# 如果掉回 YUY2 / YUYV 这类低帧率未压缩路径，就直接报错退出。
+strict_pixel_format = true
+
+# 不关闭 RGB 自动转换。保持允许驱动/DirectShow 把 MJPG 解码成 RGB24 后再交给 OpenCV。
+disable_rgb_convert = false
+
+# 相机驱动缓冲区大小。1 往往能降低延迟。
+buffer_size = 1
+
+# 相机采集宽度。这里按正常方式直接请求 1280x720。
+width = 1920
+
+# 相机采集高度。这里按正常方式直接请求 1280x720。
+height = 1080
+
+# 相机请求帧率。
+fps = 60
+
+# 是否只跑纯取流测速，不跑 AprilTag 识别。
+benchmark_capture = false
+
+# 纯取流测速持续时间，单位秒。
+benchmark_seconds = 5.0
+
+# 纯取流测速的分辨率组合。多个模式用分号隔开，例如：
+# "1920x1080;1280x720;960x540"
+# 留空表示只测当前 width/height。
+benchmark_grid = ""
+
+# 纯取流测速的像素格式。all 会依次测试 mjpg 和 yuy2。
+benchmark_pixel_formats = "all"
+
+[processing]
+# 检测时使用的软件降采样宽度。会对整张图缩小，但保留完整视角，不做裁剪。
+process_width = 1280
+
+# 检测时使用的软件降采样高度。设置成 540 就是把整张 1080p 图缩到 960x540 再检测。
+process_height = 720
+
+# 性能档位。balanced 适合默认使用，speed 更轻，accuracy 更重。
+profile = "speed"
+
+# AprilTag 标签家族。你当前项目默认是 tag36h11。
+family = "tag36h11"
+
+# 标签黑色外框边长，单位米。80 mm 就写 0.08。
+tag_size_m = 0.031
+
+# 如果没有标定文件，就用这个水平视场角做近似测距。
+horizontal_fov_deg = 70.0
+
+# 如果你知道镜头焦距像素值，可以直接填；不知道就保持注释状态。
+# focal_length_px = 1200.0
+
+# 检测前额外缩放比例。已经用了 process_width/process_height 时，建议保持 1.0。
+detect_scale = 1.0
+
+# 已知 ROI 时的额外缩放比例。1.0 表示不再额外缩小。
+roi_detect_scale = 1.0
+
+# 限制检测频率，单位 Hz。0 表示每帧都检测。
+max_detect_hz = 12.0
+
+# 每隔多少次检测强制全图重搜一次，避免一直卡在旧 ROI。
+full_frame_interval = 2
+
+# 角点精修方式。apriltag 最稳，subpix 折中，none 最轻。
+refine = "subpix"
+
+# 是否在画面上绘制位姿坐标轴。
+draw_axes = true
+
+# 是否启用 ROI 跟踪。打开后会优先在上一帧目标附近检测。
+use_roi_tracking = true
+
+# ROI 扩展像素。目标移动快时可以适当调大。
+roi_padding = 96
+
+# 是否后台持续抓最新帧。通常打开更稳。
+async_capture = true
+
+# 加速方式。当前建议 auto 或 none。这里先不折腾 GPU。
+accel = "none"
+
+[view]
+# 显示窗口缩放比例。0.75 表示缩小显示，但不影响检测。
+display_scale = 0.75
+
+# 是否绘制 ROI 调试框。
+show_roi_debug = false
+
+[crop]
+# 中心裁剪宽度。0 表示不裁剪。想保留全视角时保持 0。
+crop_width = 0
+
+# 中心裁剪高度。0 表示不裁剪。想保留全视角时保持 0。
+crop_height = 0
+
+[output]
+# JSON 快照输出路径。
+snapshot_file = "output/apriltag_latest.json"
+
+# 抓拍图片保存目录。
+capture_dir = "output/captures"
+
+# JSON 快照写出频率，单位 Hz。<= 0 表示关闭。
+snapshot_hz = 2.0
+
+# 是否写格式化 JSON。true 更易读，false 写盘更轻。
+snapshot_pretty = false
+
+[calibration]
+# 相机标定文件路径。相对路径基于项目根目录。
+calibration_file = "calibration/camera_intrinsics.json"
