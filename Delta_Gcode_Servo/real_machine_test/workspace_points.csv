@@ -1,2 +1,0 @@
-index,timestamp,safe_scan_mode,feedback_x_mm,feedback_y_mm,feedback_z_mm,target_x_mm,target_y_mm,target_z_mm,servo1_feedback,servo2_feedback,servo3_feedback,servo1_target,servo2_target,servo3_target,battery_mv
-1,2026-04-14T20:35:26,Z,9.079,0.0,278.093,6.377,-4.374,280.0,970,920,1000,980,920,1000,12329

@@ -1,0 +1,37 @@
+# Reference-only repos that should not be managed by the outer 78arm repo
+/armSettings/lerobot/
+
+# Python cache and bytecode
+**/__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build and packaging outputs
+**/build/
+**/dist/
+**/*.egg-info/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+.coverage
+htmlcov/
+
+# Runtime outputs, logs, and captures
+**/output/
+**/logs/
+
+# Camera calibration results
+/AprilTag_Vision/myAprilTag/calibration/
+
+# Machine-generated runtime snapshots
+/Delta_Gcode_Servo/real_machine_test/runtime_status.log
+/Delta_Gcode_Servo/real_machine_test/workspace_points.csv
+
+# Temporary local files
+*.tmp
+*.bak

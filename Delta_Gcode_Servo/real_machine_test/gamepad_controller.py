@@ -12,11 +12,14 @@
 from __future__ import annotations
 
 import csv
+import json
 import sys
 import time
+import tomllib
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Tuple
+from typing import Any, Tuple
 
 import numpy as np
 
@@ -26,6 +29,118 @@ from delta_gcode_servo.config import robot_params
 from delta_gcode_servo.kinematics import forward_kinematics, inverse_kinematics
 from delta_gcode_servo.robot import DeltaRobot
 from delta_gcode_servo.servo import BusServoDriver
+
+
+@dataclass
+class ToolingServoConfig:
+    profile_name: str
+    servo_id: int
+    raw_min: int
+    raw_max: int
+    position_step: int
+
+    @property
+    def center_raw(self) -> int:
+        midpoint = (self.raw_min + self.raw_max) / 2.0
+        return int(round(midpoint / self.position_step) * self.position_step)
+
+    def clamp(self, raw_value: int | float) -> int:
+        quantized = int(round(float(raw_value) / self.position_step) * self.position_step)
+        low = min(self.raw_min, self.raw_max)
+        high = max(self.raw_min, self.raw_max)
+        return max(low, min(high, quantized))
+
+
+@dataclass
+class SensorSnapshot:
+    imu_payload: dict[str, Any] | None = None
+    imu_age_ms: float | None = None
+    apriltag_payload: dict[str, Any] | None = None
+    apriltag_age_ms: float | None = None
+
+    @property
+    def imu_angles_deg(self) -> dict[str, float] | None:
+        payload = self.imu_payload or {}
+        angles = payload.get("angles_deg")
+        return angles if isinstance(angles, dict) else None
+
+    @property
+    def primary_detection(self) -> dict[str, Any] | None:
+        payload = self.apriltag_payload or {}
+        detections = payload.get("detections")
+        if isinstance(detections, list) and detections:
+            first = detections[0]
+            if isinstance(first, dict):
+                return first
+        return None
+
+    def yaw_deg(self, mode: str) -> float | None:
+        normalized = mode.upper()
+        if normalized == "IMU":
+            angles = self.imu_angles_deg
+            if angles is None:
+                return None
+            yaw = angles.get("yaw")
+            return float(yaw) if isinstance(yaw, (int, float)) else None
+        if normalized == "TAG":
+            detection = self.primary_detection
+            if detection is None:
+                return None
+            orientation = detection.get("orientation_deg")
+            if not isinstance(orientation, dict):
+                return None
+            yaw = orientation.get("yaw")
+            return float(yaw) if isinstance(yaw, (int, float)) else None
+        return None
+
+
+def read_json_snapshot(path: Path) -> tuple[dict[str, Any] | None, float | None]:
+    if not path.exists():
+        return None, None
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None, None
+
+    if not isinstance(payload, dict):
+        return None, None
+
+    timestamp = payload.get("timestamp_unix")
+    if isinstance(timestamp, (int, float)):
+        age_ms = max(0.0, (time.time() - float(timestamp)) * 1000.0)
+    else:
+        age_ms = None
+    return payload, age_ms
+
+
+def load_tooling_servo_config(config_path: Path) -> ToolingServoConfig | None:
+    if not config_path.exists():
+        return None
+
+    try:
+        config_data = tomllib.loads(config_path.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+
+    servos = config_data.get("servos")
+    if not isinstance(servos, dict):
+        return None
+
+    servo4 = servos.get("servo4")
+    if not isinstance(servo4, dict):
+        return None
+
+    try:
+        return ToolingServoConfig(
+            profile_name="servo4",
+            servo_id=int(servo4.get("id", 4)),
+            raw_min=int(servo4.get("raw_min", 0)),
+            raw_max=int(servo4.get("raw_max", 1000)),
+            position_step=max(1, int(servo4.get("position_step", 5))),
+        )
+    except (TypeError, ValueError):
+        return None
 
 
 class GamepadReader:
@@ -112,10 +227,15 @@ class GamepadReader:
         value = max(-1.0, min(1.0, value))
         return self._apply_deadzone(value)
 
+    def _read_button(self, index: int) -> bool:
+        if self.joystick is None or self.joystick.get_numbuttons() <= index:
+            return False
+        return bool(self.joystick.get_button(index))
+
     def read(self) -> Tuple[float, float, float, dict[str, bool]]:
         """返回 (left_x, left_y, right_y, buttons)。"""
         if not self.joystick or self.pygame is None:
-            return 0.0, 0.0, 0.0, {"a": False, "b": False, "x": False}
+            return 0.0, 0.0, 0.0, {"a": False, "b": False, "x": False, "y": False, "lb": False, "rb": False}
 
         try:
             self.pygame.event.pump()
@@ -126,14 +246,17 @@ class GamepadReader:
             right_y = self._read_axis(self.right_y_axis)
 
             buttons = {
-                "a": bool(self.joystick.get_button(0)),
-                "b": bool(self.joystick.get_button(1)),
-                "x": bool(self.joystick.get_button(2)),
+                "a": self._read_button(0),
+                "b": self._read_button(1),
+                "x": self._read_button(2),
+                "y": self._read_button(3),
+                "lb": self._read_button(4),
+                "rb": self._read_button(5),
             }
             return left_x, left_y, right_y, buttons
         except Exception as exc:
             print(f"读取手柄失败: {exc}")
-            return 0.0, 0.0, 0.0, {"a": False, "b": False, "x": False}
+            return 0.0, 0.0, 0.0, {"a": False, "b": False, "x": False, "y": False, "lb": False, "rb": False}
 
 
 class RealTimeArmController:
@@ -144,6 +267,7 @@ class RealTimeArmController:
         self.robot = DeltaRobot()
         self.params = robot_params()
         self.port = port
+        self.project_root = Path(__file__).resolve().parents[2]
         self.servo_ids = [1, 2, 3]
         self.servo_step_ticks = 10
 
@@ -161,6 +285,7 @@ class RealTimeArmController:
             for servo_id, (raw_min, raw_max) in raw_servo_limits.items()
         }
         self.startup_tolerance_ticks = 25
+        self.reference_position = np.array(self.params.home_position, dtype=float)
 
         # 空载调试模式: 把参考位放在模型中间层，避免一上来就贴着 Z 上边界。
         self.reference_position = np.array(self.params.home_position, dtype=float)
@@ -184,6 +309,8 @@ class RealTimeArmController:
         self.speed_z = 100.0
         self.update_rate = 50
         self.update_interval = 1.0 / self.update_rate
+        self.axis_filter_alpha = 0.35
+        self.filtered_axes = np.zeros(3, dtype=float)
         self.xy_rotation_rad = 0.0
         self.enforce_workspace_bounds = False
         self.enable_stall_guard = False
@@ -201,16 +328,31 @@ class RealTimeArmController:
         self.last_feedback_change_time: float | None = None
         self.last_motion_command_time: float | None = None
         self.last_voltage_poll_time = 0.0
+        self.last_sensor_poll_time = 0.0
         self.feedback_failure_count = 0
         self.battery_voltage_mv: int | None = None
         self.last_axes = (0.0, 0.0, 0.0)
-        self.last_buttons = {"a": False, "b": False, "x": False}
+        self.last_axes_raw = (0.0, 0.0, 0.0)
+        self.last_buttons = {"a": False, "b": False, "x": False, "y": False, "lb": False, "rb": False}
         self.safety_fault_message: str | None = None
         self.safe_scan_mode = "FREE"
         self.record_file_path = Path(__file__).with_name("workspace_points.csv")
         self.runtime_status_path = Path(__file__).with_name("runtime_status.log")
         self.record_count = 0
         self.status_update_interval = 0.2
+        self.sensor_poll_interval = 0.10
+        self.sensor_frame_mode = "OFF"
+        self.sensor_heading_zero_deg: float | None = None
+        self.sensor_snapshot = SensorSnapshot()
+        self.imu_snapshot_path = self.project_root / "IMU" / "wt61c_latest.json"
+        self.apriltag_snapshot_path = self.project_root / "AprilTag_Vision" / "myAprilTag" / "output" / "apriltag_latest.json"
+        self.tooling_config = load_tooling_servo_config(
+            self.project_root / "lx225_tool_demo" / "config" / "lx225_tool.demo.toml"
+        )
+        self.tooling_speed_ticks_per_sec = 180.0
+        self.tooling_current_position: int | None = None
+        self.tooling_target_position: int | None = None
+        self.last_sent_tooling_position: int | None = None
         self.is_ready = False
 
         self.gamepad = GamepadReader(deadzone=0.05)
@@ -237,6 +379,96 @@ class RealTimeArmController:
 
     def edge_pressed(self, name: str, buttons: dict[str, bool]) -> bool:
         return buttons.get(name, False) and not self.last_buttons.get(name, False)
+
+    def filter_axes(self, left_x: float, left_y: float, right_y: float) -> tuple[float, float, float]:
+        raw_axes = np.array([left_x, left_y, right_y], dtype=float)
+        self.filtered_axes = (
+            self.axis_filter_alpha * raw_axes
+            + (1.0 - self.axis_filter_alpha) * self.filtered_axes
+        )
+        self.filtered_axes[np.abs(raw_axes) < 0.01] = 0.0
+        return tuple(float(value) for value in self.filtered_axes)
+
+    def sync_sensor_feedback(self, *, force: bool = False) -> None:
+        now = time.perf_counter()
+        if not force and now - self.last_sensor_poll_time < self.sensor_poll_interval:
+            return
+
+        self.last_sensor_poll_time = now
+        imu_payload, imu_age_ms = read_json_snapshot(self.imu_snapshot_path)
+        apriltag_payload, apriltag_age_ms = read_json_snapshot(self.apriltag_snapshot_path)
+        self.sensor_snapshot = SensorSnapshot(
+            imu_payload=imu_payload,
+            imu_age_ms=imu_age_ms,
+            apriltag_payload=apriltag_payload,
+            apriltag_age_ms=apriltag_age_ms,
+        )
+        self.update_control_frame_from_sensors()
+
+    def cycle_sensor_frame_mode(self) -> None:
+        modes = ["OFF", "IMU", "TAG"]
+        current_index = modes.index(self.sensor_frame_mode)
+        self.sensor_frame_mode = modes[(current_index + 1) % len(modes)]
+        self.sensor_heading_zero_deg = self.sensor_snapshot.yaw_deg(self.sensor_frame_mode)
+        self.update_control_frame_from_sensors()
+        print(f"sensor frame mode -> {self.sensor_frame_mode}")
+        self.write_runtime_status()
+
+    def update_control_frame_from_sensors(self) -> None:
+        current_yaw_deg = self.sensor_snapshot.yaw_deg(self.sensor_frame_mode)
+        if self.sensor_frame_mode == "OFF" or current_yaw_deg is None:
+            self.xy_rotation_rad = 0.0
+            return
+
+        if self.sensor_heading_zero_deg is None:
+            self.sensor_heading_zero_deg = current_yaw_deg
+
+        self.xy_rotation_rad = np.radians(current_yaw_deg - self.sensor_heading_zero_deg)
+
+    def sync_tooling_feedback(self) -> None:
+        if self.tooling_config is None:
+            return
+
+        try:
+            feedback = self.driver.read_servo_positions(
+                [self.tooling_config.servo_id],
+                timeout=self.feedback_timeout,
+            )
+        except Exception:
+            return
+
+        if self.tooling_config.servo_id not in feedback:
+            return
+
+        position = self.tooling_config.clamp(int(feedback[self.tooling_config.servo_id]))
+        self.tooling_current_position = position
+        if self.tooling_target_position is None:
+            self.tooling_target_position = position
+        if self.last_sent_tooling_position is None:
+            self.last_sent_tooling_position = position
+
+    def update_tooling_from_buttons(self, buttons: dict[str, bool]) -> bool:
+        if self.tooling_config is None:
+            return False
+
+        if self.tooling_target_position is None:
+            self.tooling_target_position = self.tooling_config.center_raw
+
+        direction = 0
+        if buttons.get("rb", False):
+            direction += 1
+        if buttons.get("lb", False):
+            direction -= 1
+        if direction == 0:
+            return False
+
+        delta_ticks = direction * self.tooling_speed_ticks_per_sec * self.update_interval
+        next_target = self.tooling_config.clamp(self.tooling_target_position + delta_ticks)
+        if next_target == self.tooling_target_position:
+            return False
+
+        self.tooling_target_position = next_target
+        return True
 
     def cycle_safe_scan_mode(self) -> None:
         modes = ["FREE", "X", "Y", "Z"]
@@ -323,6 +555,50 @@ class RealTimeArmController:
             f"摇杆输入: LX={self.last_axes[0]:+.3f}, LY={self.last_axes[1]:+.3f}, RY={self.last_axes[2]:+.3f}",
             f"记录点数量: {self.record_count}",
         ]
+
+        lines.append(
+            f"sensor frame: {self.sensor_frame_mode} | xy_rotation_deg={np.degrees(self.xy_rotation_rad):+.2f}"
+        )
+        lines.append(
+            f"axes raw: LX={self.last_axes_raw[0]:+.3f}, LY={self.last_axes_raw[1]:+.3f}, RY={self.last_axes_raw[2]:+.3f}"
+        )
+        if self.tooling_config is not None:
+            lines.append(
+                "tooling servo: "
+                f"id={self.tooling_config.servo_id}, "
+                f"feedback={self.tooling_current_position}, "
+                f"target={self.tooling_target_position}, "
+                f"range={self.tooling_config.raw_min}-{self.tooling_config.raw_max}"
+            )
+
+        imu_angles = self.sensor_snapshot.imu_angles_deg
+        if imu_angles is not None:
+            imu_text = (
+                "imu: "
+                f"roll={float(imu_angles.get('roll', 0.0)):+.2f} deg, "
+                f"pitch={float(imu_angles.get('pitch', 0.0)):+.2f} deg, "
+                f"yaw={float(imu_angles.get('yaw', 0.0)):+.2f} deg"
+            )
+            if self.sensor_snapshot.imu_age_ms is not None:
+                imu_text += f", age_ms={self.sensor_snapshot.imu_age_ms:.0f}"
+            lines.append(imu_text)
+
+        detection = self.sensor_snapshot.primary_detection
+        if detection is not None:
+            position_m = detection.get("position_m") if isinstance(detection.get("position_m"), dict) else {}
+            orientation = detection.get("orientation_deg") if isinstance(detection.get("orientation_deg"), dict) else {}
+            tag_text = (
+                "apriltag: "
+                f"id={detection.get('id')}, "
+                f"x={float(position_m.get('x', 0.0)):+.3f} m, "
+                f"y={float(position_m.get('y', 0.0)):+.3f} m, "
+                f"z={float(position_m.get('z', 0.0)):+.3f} m"
+            )
+            if orientation:
+                tag_text += f", yaw={float(orientation.get('yaw', 0.0)):+.2f} deg"
+            if self.sensor_snapshot.apriltag_age_ms is not None:
+                tag_text += f", age_ms={self.sensor_snapshot.apriltag_age_ms:.0f}"
+            lines.append(tag_text)
 
         if self.battery_voltage_mv is not None:
             lines.append(f"驱动板电压: {self.battery_voltage_mv} mV")
@@ -435,6 +711,8 @@ class RealTimeArmController:
                     self.battery_voltage_mv = self.driver.get_battery_voltage_mv(timeout=self.feedback_timeout)
                 except Exception:
                     pass
+
+            self.sync_tooling_feedback()
 
             self.feedback_failure_count = 0
             return True
@@ -553,12 +831,21 @@ class RealTimeArmController:
 
         try:
             next_positions, time_ms = self.compute_next_servo_command()
-            if next_positions == self.last_sent_positions:
+            tooling_changed = (
+                self.tooling_config is not None
+                and self.tooling_target_position is not None
+                and self.tooling_target_position != self.last_sent_tooling_position
+            )
+            if next_positions == self.last_sent_positions and not tooling_changed:
                 return True
 
             targets = [(servo_id, next_positions[servo_id]) for servo_id in self.servo_ids]
+            if self.tooling_config is not None and self.tooling_target_position is not None:
+                targets.append((self.tooling_config.servo_id, self.tooling_target_position))
             self.driver.set_servo_positions(targets, time_ms)
             self.last_sent_positions = next_positions.copy()
+            if self.tooling_config is not None:
+                self.last_sent_tooling_position = self.tooling_target_position
             self.last_motion_command_time = time.perf_counter()
             return True
         except Exception as exc:
@@ -595,6 +882,8 @@ class RealTimeArmController:
 
         previous_buttons = self.last_buttons.copy()
         left_x, left_y, right_y, buttons = self.gamepad.read()
+        self.last_axes_raw = (left_x, left_y, right_y)
+        left_x, left_y, right_y = self.filter_axes(left_x, left_y, right_y)
         self.last_axes = (left_x, left_y, right_y)
         self.last_buttons = buttons.copy()
 
@@ -607,8 +896,12 @@ class RealTimeArmController:
         if buttons.get("x", False) and not previous_buttons.get("x", False):
             self.cycle_safe_scan_mode()
 
+        if buttons.get("y", False) and not previous_buttons.get("y", False):
+            self.cycle_sensor_frame_mode()
+
+        tooling_changed = self.update_tooling_from_buttons(buttons)
         if max(abs(left_x), abs(left_y), abs(right_y)) < 0.01:
-            return True, False
+            return True, tooling_changed
 
         new_position = self.target_position.copy()
         delta_x_user = left_x * self.speed_xy * self.update_interval
@@ -640,7 +933,7 @@ class RealTimeArmController:
             new_position[2] = np.clip(new_position[2], bounds["z_min"], bounds["z_max"])
 
         if np.allclose(new_position, self.target_position, atol=1e-6):
-            return True, False
+            return True, tooling_changed
 
         angles_rad, success = inverse_kinematics(
             new_position[0],
@@ -649,7 +942,7 @@ class RealTimeArmController:
             self.params,
         )
         if not success:
-            return True, False
+            return True, tooling_changed
 
         self.target_position = new_position
         self.target_angles_rad = angles_rad
@@ -703,6 +996,53 @@ class RealTimeArmController:
         finally:
             self.cleanup()
 
+    def run_controller(self) -> None:
+        if not self.connect():
+            self.cleanup()
+            return
+
+        if not self.confirm_and_init():
+            self.cleanup()
+            return
+
+        self.sync_sensor_feedback(force=True)
+        print("\nStart realtime control.")
+        print("Left stick -> X/Y, right stick -> Z, A -> quit, B -> record, X -> safe scan.")
+        print("Y -> sensor frame mode, LB/RB -> tooling servo if servo4 is configured.")
+        print(f"Runtime status file: {self.runtime_status_path.name}")
+
+        try:
+            last_status_write = 0.0
+            while True:
+                if not self.sync_servo_feedback():
+                    print(self.safety_fault_message or "Feedback sync failed.")
+                    break
+
+                self.sync_sensor_feedback()
+                continue_run, _ = self.update_from_gamepad()
+                if not continue_run:
+                    print("\nQuit command received.")
+                    break
+
+                if not self.send_servo_positions():
+                    print(self.safety_fault_message or "Servo command send failed.")
+                    break
+
+                if not self.check_safety_guard():
+                    print(self.safety_fault_message)
+                    break
+
+                now = time.time()
+                if now - last_status_write >= self.status_update_interval:
+                    self.write_runtime_status()
+                    last_status_write = now
+
+                time.sleep(self.update_interval)
+        except KeyboardInterrupt:
+            print("\nController interrupted.")
+        finally:
+            self.cleanup()
+
     def cleanup(self) -> None:
         try:
             self.driver.close()
@@ -715,7 +1055,7 @@ def main() -> None:
     try:
         port = input("输入串口 (默认 COM9): ").strip() or "COM9"
         controller = RealTimeArmController(port=port)
-        controller.run()
+        controller.run_controller()
     except Exception as exc:
         print(f"程序出错: {exc}")
         import traceback

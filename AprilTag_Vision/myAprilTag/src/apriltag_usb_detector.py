@@ -1067,6 +1067,30 @@ def estimate_from_size(
     return x, y, z
 
 
+def rvec_to_euler_deg(rvec: np.ndarray | None) -> dict[str, float] | None:
+    if rvec is None:
+        return None
+
+    rotation_matrix, _ = cv2.Rodrigues(np.asarray(rvec, dtype=np.float64).reshape(3, 1))
+    sy = math.sqrt(rotation_matrix[0, 0] ** 2 + rotation_matrix[1, 0] ** 2)
+    singular = sy < 1e-6
+
+    if not singular:
+        roll = math.atan2(rotation_matrix[2, 1], rotation_matrix[2, 2])
+        pitch = math.atan2(-rotation_matrix[2, 0], sy)
+        yaw = math.atan2(rotation_matrix[1, 0], rotation_matrix[0, 0])
+    else:
+        roll = math.atan2(-rotation_matrix[1, 2], rotation_matrix[1, 1])
+        pitch = math.atan2(-rotation_matrix[2, 0], sy)
+        yaw = 0.0
+
+    return {
+        "roll": math.degrees(roll),
+        "pitch": math.degrees(pitch),
+        "yaw": math.degrees(yaw),
+    }
+
+
 def roi_to_dict(roi: tuple[int, int, int, int] | None) -> dict | None:
     if roi is None:
         return None
@@ -1134,6 +1158,8 @@ def build_overlay_items(
                 cy=cy,
             )
 
+        orientation_deg = None if rvecs is None else rvec_to_euler_deg(rvecs[idx])
+
         detections.append(
             {
                 "id": int(marker_id),
@@ -1144,6 +1170,7 @@ def build_overlay_items(
                     "x": (float(center[0]) - cx) / max(cx, 1.0),
                     "y": (float(center[1]) - cy) / max(cy, 1.0),
                 },
+                "orientation_deg": orientation_deg,
             }
         )
 
