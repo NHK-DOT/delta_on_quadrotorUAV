@@ -12,6 +12,7 @@ def main():
     print("\n" + "="*70)
     print("Delta 机械臂 - 实机测试工具包")
     print("="*70)
+    print(f"Python: {sys.executable}")
     print("\n请选择要运行的工具:\n")
     print("  1: 舵机校准工具 (单个舵机+/-增量测试)")
     print("  2: 手柄控制工具 (实时Xbox手柄控制)")

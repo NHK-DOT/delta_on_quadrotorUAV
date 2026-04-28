@@ -13,6 +13,7 @@ if __name__ == "__main__":
     print("\n" + "="*70)
     print("Delta 机械臂实机测试 - 快速启动")
     print("="*70 + "\n")
+    print(f"Python: {sys.executable}\n")
     
     tools = {
         "1": ("servo_calibration", "舵机校准工具 (单舵机小增量测试)"),

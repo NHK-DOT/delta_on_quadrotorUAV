@@ -29,6 +29,7 @@ from delta_gcode_servo.config import robot_params
 from delta_gcode_servo.kinematics import forward_kinematics, inverse_kinematics
 from delta_gcode_servo.robot import DeltaRobot
 from delta_gcode_servo.servo import BusServoDriver
+from delta_gcode_servo.servo_mapping import load_servo_mappings_for_ids
 
 
 @dataclass
@@ -152,34 +153,57 @@ class GamepadReader:
         self.joystick = None
         self.axis_baselines: list[float] = []
         self.right_y_axis = 4
-
-        try:
-            import pygame
-
-            pygame.init()
-            pygame.joystick.init()
-            self.pygame = pygame
-
-            if pygame.joystick.get_count() == 0:
-                print("未检测到手柄。")
-                return
-
-            self.joystick = pygame.joystick.Joystick(0)
-            self.joystick.init()
-            self._capture_axis_baselines()
-            self.right_y_axis = self._select_right_y_axis()
-
-            print(f"检测到手柄: {self.joystick.get_name()}")
-            print(f"轴数量: {self.joystick.get_numaxes()}")
-            print(f"按钮数量: {self.joystick.get_numbuttons()}")
-            print(f"当前死区: {self.deadzone:.2f}")
-            print(f"右摇杆Y轴映射: axis {self.right_y_axis}")
-        except Exception as exc:
-            print(f"手柄初始化失败: {exc}")
-            self.joystick = None
+        self.last_error: str | None = None
+        self.last_detected_count = 0
+        self.refresh(announce=True)
 
     def is_available(self) -> bool:
         return self.joystick is not None
+
+    def refresh(self, *, announce: bool = False) -> bool:
+        try:
+            if self.pygame is None:
+                import pygame
+
+                pygame.init()
+                self.pygame = pygame
+
+            assert self.pygame is not None
+            self.pygame.joystick.quit()
+            time.sleep(0.05)
+            self.pygame.joystick.init()
+            self.pygame.event.pump()
+
+            self.last_detected_count = int(self.pygame.joystick.get_count())
+            if self.last_detected_count <= 0:
+                self.joystick = None
+                self.last_error = "no_joystick_detected"
+                if announce:
+                    print("未检测到手柄。")
+                return False
+
+            self.joystick = self.pygame.joystick.Joystick(0)
+            self.joystick.init()
+            self._capture_axis_baselines()
+            self.right_y_axis = self._select_right_y_axis()
+            self.last_error = None
+
+            if announce:
+                print(f"检测到手柄: {self.joystick.get_name()}")
+                print(f"轴数量: {self.joystick.get_numaxes()}")
+                print(f"十字键数量: {self.joystick.get_numhats()}")
+                print(f"按钮数量: {self.joystick.get_numbuttons()}")
+                print(f"当前死区: {self.deadzone:.2f}")
+                print(f"右摇杆Y轴映射: axis {self.right_y_axis}")
+            return True
+        except Exception as exc:
+            self.joystick = None
+            self.last_error = str(exc)
+            if announce:
+                print(f"手柄初始化失败: {exc}")
+                print(f"当前 Python: {sys.executable}")
+                print("如果这里是没有安装 pygame 的解释器，请改用装了 pygame 的那个 python 来启动。")
+            return False
 
     def _apply_deadzone(self, value: float) -> float:
         if abs(value) <= self.deadzone:
@@ -232,17 +256,26 @@ class GamepadReader:
             return False
         return bool(self.joystick.get_button(index))
 
+    def _read_hat(self, index: int = 0) -> tuple[float, float]:
+        if self.joystick is None or self.joystick.get_numhats() <= index:
+            return 0.0, 0.0
+
+        hat_x, hat_y = self.joystick.get_hat(index)
+        # Only accept the four cardinal D-pad directions. If two directions are
+        # pressed together, do not emit a diagonal XY command.
+        if hat_x != 0 and hat_y != 0:
+            return 0.0, 0.0
+        return float(hat_x), float(hat_y)
+
     def read(self) -> Tuple[float, float, float, dict[str, bool]]:
-        """返回 (left_x, left_y, right_y, buttons)。"""
+        """返回 (dpad_x, dpad_y, right_y, buttons)。"""
         if not self.joystick or self.pygame is None:
             return 0.0, 0.0, 0.0, {"a": False, "b": False, "x": False, "y": False, "lb": False, "rb": False}
 
         try:
             self.pygame.event.pump()
 
-            left_x = self._read_axis(0)
-            left_y = self._read_axis(1)
-
+            dpad_x, dpad_y = self._read_hat()
             right_y = self._read_axis(self.right_y_axis)
 
             buttons = {
@@ -253,7 +286,7 @@ class GamepadReader:
                 "lb": self._read_button(4),
                 "rb": self._read_button(5),
             }
-            return left_x, left_y, right_y, buttons
+            return dpad_x, dpad_y, right_y, buttons
         except Exception as exc:
             print(f"读取手柄失败: {exc}")
             return 0.0, 0.0, 0.0, {"a": False, "b": False, "x": False, "y": False, "lb": False, "rb": False}
@@ -263,26 +296,55 @@ class RealTimeArmController:
     """实机测试控制器。"""
 
     def __init__(self, port: str = "COM9", baudrate: int = 9600):
-        self.driver = BusServoDriver(port=port, baudrate=baudrate, connect_delay=0.2)
+        self.project_root = Path(__file__).resolve().parents[2]
+        self.debug_log_path = Path(__file__).with_name("gamepad_diagnostic.log")
+        self.debug_log_file = self.debug_log_path.open("w", encoding="utf-8")
+        self.debug_log_file.write(f"# gamepad diagnostic {datetime.now().isoformat(timespec='seconds')}\n")
+        self.debug_log_file.flush()
+        self.debug_log_buffer: list[str] = []
+        self.debug_log_flush_interval = 0.12
+        self.debug_log_flush_limit = 96
+        self.last_debug_log_flush_time = time.perf_counter()
+        self.driver = BusServoDriver(
+            port=port,
+            baudrate=baudrate,
+            connect_delay=0.2,
+            packet_trace_hook=self.trace_packet,
+        )
         self.robot = DeltaRobot()
         self.params = robot_params()
         self.port = port
-        self.project_root = Path(__file__).resolve().parents[2]
         self.servo_ids = [1, 2, 3]
-        self.servo_step_ticks = 10
-
-        raw_reference_servo_positions = {1: 988, 2: 920, 3: 1000}
-        raw_servo_limits = {1: (500, 988), 2: (500, 920), 3: (500, 1000)}
+        self.physical_angle_min_deg = float(self.params.servo_physical_angle_min_deg)
+        self.physical_angle_max_deg = float(self.params.servo_physical_angle_max_deg)
+        self.servo_mappings = load_servo_mappings_for_ids(self.servo_ids)
+        self.servo_raw_directions = {1: -1, 2: -1, 3: -1}
+        self.servo_logical_directions = {
+            servo_id: self.servo_raw_directions[servo_id]
+            * (1 if self.servo_mappings[servo_id].logical_span >= 0.0 else -1)
+            for servo_id in self.servo_ids
+        }
+        self.servo_units_per_degree = {
+            servo_id: self.servo_mappings[servo_id].logical_units_per_degree(
+                physical_min_deg=self.physical_angle_min_deg,
+                physical_max_deg=self.physical_angle_max_deg,
+            )
+            for servo_id in self.servo_ids
+        }
         self.reference_servo_positions = {
-            servo_id: self.quantize_servo_position(position)
-            for servo_id, position in raw_reference_servo_positions.items()
+            servo_id: self.quantize_servo_position(servo_id, self.servo_mappings[servo_id].raw_max)
+            for servo_id in self.servo_ids
+        }
+        self.reference_servo_coords = {
+            servo_id: self.servo_mappings[servo_id].raw_to_logical(self.reference_servo_positions[servo_id])
+            for servo_id in self.servo_ids
         }
         self.servo_limits = {
             servo_id: (
-                self.quantize_servo_position(raw_min),
-                self.quantize_servo_position(raw_max),
+                self.servo_mappings[servo_id].raw_low,
+                self.servo_mappings[servo_id].raw_high,
             )
-            for servo_id, (raw_min, raw_max) in raw_servo_limits.items()
+            for servo_id in self.servo_ids
         }
         self.startup_tolerance_ticks = 25
         self.reference_position = np.array(self.params.home_position, dtype=float)
@@ -295,29 +357,34 @@ class RealTimeArmController:
         self.current_angles_rad: np.ndarray | None = None
         self.current_position = self.reference_position.copy()
 
+        self.command_servo_positions = self.reference_servo_positions.copy()
         self.target_servo_positions = self.reference_servo_positions.copy()
         self.target_angles_rad: np.ndarray | None = None
         self.target_position = self.reference_position.copy()
 
-        self.servo_ticks_per_degree = 1000.0 / 240.0
-        self.servo_directions = {1: -1, 2: -1, 3: -1}
-
-        self.max_servo_speed_ticks_per_sec = 300.0
-        self.min_effective_move_ticks = 10
+        self.max_servo_speed_ticks_per_sec = 400.0
+        self.min_effective_move_ticks = 4
+        self.min_command_time_ms = 20
         self.position_tolerance_ticks = 0
-        self.speed_xy = 120.0
-        self.speed_z = 100.0
+        self.speed_xy = 100.0
+        self.speed_z = 80.0
         self.update_rate = 50
         self.update_interval = 1.0 / self.update_rate
-        self.axis_filter_alpha = 0.35
+        self.axis_filter_alpha = 1.0
+        self.dpad_threshold = 0.55
         self.filtered_axes = np.zeros(3, dtype=float)
+        self.last_dpad_axes = (0.0, 0.0, 0.0)
+        self.motion_dpad_axes = np.zeros(3, dtype=float)
+        self.last_motion_dpad_axes = (0.0, 0.0, 0.0)
+        self.dpad_slew_rate = 16.0
         self.xy_rotation_rad = 0.0
         self.enforce_workspace_bounds = False
         self.enable_stall_guard = False
 
-        self.feedback_interval = 0.05
-        self.feedback_timeout = 0.2
-        self.feedback_failure_limit = 5
+        self.feedback_interval = 0.35
+        self.feedback_timeout = 0.05
+        self.startup_feedback_timeout = 0.20
+        self.feedback_failure_limit = 10
         self.stall_error_ticks = 20
         self.stall_timeout = 1.2
 
@@ -325,6 +392,8 @@ class RealTimeArmController:
         self.last_sent_positions = self.current_servo_positions.copy()
         self.last_send_time: float | None = None
         self.last_feedback_poll_time = 0.0
+        self.last_tooling_feedback_poll_time = 0.0
+        self.tooling_feedback_interval = 0.80
         self.last_feedback_change_time: float | None = None
         self.last_motion_command_time: float | None = None
         self.last_voltage_poll_time = 0.0
@@ -349,13 +418,41 @@ class RealTimeArmController:
         self.tooling_config = load_tooling_servo_config(
             self.project_root / "lx225_tool_demo" / "config" / "lx225_tool.demo.toml"
         )
-        self.tooling_speed_ticks_per_sec = 180.0
+        self.tooling_speed_ticks_per_sec = 120.0
         self.tooling_current_position: int | None = None
         self.tooling_target_position: int | None = None
         self.last_sent_tooling_position: int | None = None
         self.is_ready = False
 
         self.gamepad = GamepadReader(deadzone=0.05)
+
+    def debug_log(self, message: str) -> None:
+        try:
+            now = time.perf_counter()
+            self.debug_log_buffer.append(
+                f"{now:.6f} {datetime.now().isoformat(timespec='milliseconds')} {message}\n"
+            )
+            if (
+                len(self.debug_log_buffer) >= self.debug_log_flush_limit
+                or now - self.last_debug_log_flush_time >= self.debug_log_flush_interval
+            ):
+                self.flush_debug_log(now=now)
+        except Exception:
+            pass
+
+    def flush_debug_log(self, *, now: float | None = None) -> None:
+        try:
+            if self.debug_log_buffer:
+                self.debug_log_file.writelines(self.debug_log_buffer)
+                self.debug_log_buffer.clear()
+            self.debug_log_file.flush()
+            self.last_debug_log_flush_time = time.perf_counter() if now is None else now
+        except Exception:
+            pass
+
+    def trace_packet(self, direction: str, packet: bytes, note: str) -> None:
+        hex_text = packet.hex(" ").upper() if packet else "<none>"
+        self.debug_log(f"SERIAL {direction} {note} {hex_text}")
 
     def connect(self) -> bool:
         try:
@@ -364,8 +461,13 @@ class RealTimeArmController:
             print("串口连接成功。")
 
             if not self.gamepad.is_available():
-                print("手柄未初始化，无法进入控制。")
-                return False
+                print("手柄第一次扫描未就绪，正在重扫...")
+                if not self.gamepad.refresh(announce=True):
+                    print(
+                        "手柄仍未初始化，无法进入控制。"
+                        f" count={self.gamepad.last_detected_count}, error={self.gamepad.last_error}"
+                    )
+                    return False
 
             print("手柄连接成功。")
             return True
@@ -373,9 +475,11 @@ class RealTimeArmController:
             print(f"连接失败: {exc}")
             return False
 
-    def quantize_servo_position(self, value: int | float) -> int:
-        step = self.servo_step_ticks
-        return int(np.floor((float(value) / step) + 0.5) * step)
+    def quantize_servo_position(self, servo_id: int, value: int | float) -> int:
+        return self.servo_mappings[servo_id].quantize_raw(value)
+
+    def servo_position_to_coord(self, servo_id: int, position: int | float) -> float:
+        return self.servo_mappings[servo_id].raw_to_logical(position)
 
     def edge_pressed(self, name: str, buttons: dict[str, bool]) -> bool:
         return buttons.get(name, False) and not self.last_buttons.get(name, False)
@@ -388,6 +492,36 @@ class RealTimeArmController:
         )
         self.filtered_axes[np.abs(raw_axes) < 0.01] = 0.0
         return tuple(float(value) for value in self.filtered_axes)
+
+    def _axis_to_dpad(self, x_value: float, y_value: float) -> tuple[float, float]:
+        abs_x = abs(x_value)
+        abs_y = abs(y_value)
+        if max(abs_x, abs_y) < self.dpad_threshold:
+            return 0.0, 0.0
+        if abs_y >= abs_x:
+            return 0.0, 1.0 if y_value > 0.0 else -1.0
+        return 1.0 if x_value > 0.0 else -1.0, 0.0
+
+    def gamepad_to_dpad_axes(
+        self,
+        left_x: float,
+        left_y: float,
+        right_y: float,
+    ) -> tuple[float, float, float]:
+        dpad_left_x, dpad_left_y = self._axis_to_dpad(left_x, left_y)
+        if abs(right_y) >= self.dpad_threshold:
+            dpad_right_y = 1.0 if right_y > 0.0 else -1.0
+        else:
+            dpad_right_y = 0.0
+        return dpad_left_x, dpad_left_y, dpad_right_y
+
+    def smooth_dpad_axes(self, target_axes: tuple[float, float, float]) -> tuple[float, float, float]:
+        target = np.array(target_axes, dtype=float)
+        max_step = self.dpad_slew_rate * self.update_interval
+        delta = np.clip(target - self.motion_dpad_axes, -max_step, max_step)
+        self.motion_dpad_axes += delta
+        self.motion_dpad_axes[np.abs(self.motion_dpad_axes) < 0.01] = 0.0
+        return tuple(float(value) for value in self.motion_dpad_axes)
 
     def sync_sensor_feedback(self, *, force: bool = False) -> None:
         now = time.perf_counter()
@@ -425,9 +559,14 @@ class RealTimeArmController:
 
         self.xy_rotation_rad = np.radians(current_yaw_deg - self.sensor_heading_zero_deg)
 
-    def sync_tooling_feedback(self) -> None:
+    def sync_tooling_feedback(self, *, force: bool = False) -> None:
         if self.tooling_config is None:
             return
+
+        now = time.perf_counter()
+        if not force and now - self.last_tooling_feedback_poll_time < self.tooling_feedback_interval:
+            return
+        self.last_tooling_feedback_poll_time = now
 
         try:
             feedback = self.driver.read_servo_positions(
@@ -528,6 +667,7 @@ class RealTimeArmController:
             f"测试模式: 空载调试 | 工作空间裁剪={'开启' if self.enforce_workspace_bounds else '关闭'} | 堵转保护={'开启' if self.enable_stall_guard else '关闭'}",
             f"速度参数: servo={self.max_servo_speed_ticks_per_sec:.0f} tick/s, xy={self.speed_xy:.0f} mm/s, z={self.speed_z:.0f} mm/s",
             f"手柄轴映射: right_y_axis={self.gamepad.right_y_axis}",
+            f"diagnostic log: {self.debug_log_path.name}",
             (
                 "反馈末端: "
                 f"X={self.current_position[0]:.2f} mm, "
@@ -552,7 +692,9 @@ class RealTimeArmController:
                 "反馈关节角: "
                 + ", ".join(f"{value:.2f}°" for value in np.degrees(self.current_angles_rad))
             ),
-            f"摇杆输入: LX={self.last_axes[0]:+.3f}, LY={self.last_axes[1]:+.3f}, RY={self.last_axes[2]:+.3f}",
+            f"输入原始: DX={self.last_axes[0]:+.3f}, DY={self.last_axes[1]:+.3f}, RY={self.last_axes[2]:+.3f}",
+            f"十字输入: DX={self.last_dpad_axes[0]:+.0f}, DY={self.last_dpad_axes[1]:+.0f}, RY={self.last_dpad_axes[2]:+.0f}",
+            f"平滑输入: DX={self.last_motion_dpad_axes[0]:+.2f}, DY={self.last_motion_dpad_axes[1]:+.2f}, RY={self.last_motion_dpad_axes[2]:+.2f}",
             f"记录点数量: {self.record_count}",
         ]
 
@@ -669,8 +811,11 @@ class RealTimeArmController:
 
         angles_rad = np.zeros(3, dtype=float)
         for index, servo_id in enumerate(self.servo_ids):
-            delta_ticks = servo_positions[servo_id] - self.reference_servo_positions[servo_id]
-            delta_deg = delta_ticks / (self.servo_directions[servo_id] * self.servo_ticks_per_degree)
+            current_coord = self.servo_position_to_coord(servo_id, servo_positions[servo_id])
+            delta_coord = current_coord - self.reference_servo_coords[servo_id]
+            delta_deg = delta_coord / (
+                self.servo_logical_directions[servo_id] * self.servo_units_per_degree[servo_id]
+            )
             angles_rad[index] = self.reference_angles_rad[index] + np.radians(delta_deg)
         return angles_rad
 
@@ -682,11 +827,13 @@ class RealTimeArmController:
         self.last_feedback_poll_time = now
 
         try:
-            feedback_positions = self.driver.read_servo_positions(self.servo_ids, timeout=self.feedback_timeout)
+            read_timeout = self.startup_feedback_timeout if force or strict else self.feedback_timeout
+            feedback_positions = self.driver.read_servo_positions(self.servo_ids, timeout=read_timeout)
             feedback_positions = {
-                servo_id: self.quantize_servo_position(int(feedback_positions[servo_id]))
+                servo_id: self.quantize_servo_position(servo_id, int(feedback_positions[servo_id]))
                 for servo_id in self.servo_ids
             }
+            self.debug_log(f"FEEDBACK positions={feedback_positions}")
 
             if feedback_positions != self.current_servo_positions:
                 self.last_feedback_change_time = now
@@ -712,12 +859,13 @@ class RealTimeArmController:
                 except Exception:
                     pass
 
-            self.sync_tooling_feedback()
+            self.sync_tooling_feedback(force=force)
 
             self.feedback_failure_count = 0
             return True
         except Exception as exc:
             self.feedback_failure_count += 1
+            self.debug_log(f"FEEDBACK_ERROR count={self.feedback_failure_count} error={exc}")
             if strict or self.feedback_failure_count >= self.feedback_failure_limit:
                 self.safety_fault_message = f"驱动板反馈读取失败: {exc}"
                 return False
@@ -737,8 +885,8 @@ class RealTimeArmController:
 
         mismatches = []
         for servo_id in self.servo_ids:
-            actual = self.quantize_servo_position(self.current_servo_positions[servo_id])
-            expected = self.quantize_servo_position(self.reference_servo_positions[servo_id])
+            actual = self.quantize_servo_position(servo_id, self.current_servo_positions[servo_id])
+            expected = self.quantize_servo_position(servo_id, self.reference_servo_positions[servo_id])
             if abs(actual - expected) > self.startup_tolerance_ticks:
                 mismatches.append((servo_id, actual, expected))
 
@@ -752,11 +900,16 @@ class RealTimeArmController:
         self.target_position = self.current_position.copy()
         self.target_angles_rad = self.current_angles_rad.copy()
         self.target_servo_positions = self.current_servo_positions.copy()
-        self.last_sent_positions = self.current_servo_positions.copy()
+        self.command_servo_positions = self.current_servo_positions.copy()
+        self.last_sent_positions = self.command_servo_positions.copy()
         self.last_send_time = time.perf_counter()
         self.last_feedback_change_time = self.last_send_time
         self.last_motion_command_time = None
         self.servo_tick_budget = {servo_id: 0.0 for servo_id in self.servo_ids}
+        self.debug_log(
+            f"READY current_raw={self.current_servo_positions} target_xyz={self.target_position.tolist()} "
+            f"reference_raw={self.reference_servo_positions} reference_coord={self.reference_servo_coords}"
+        )
         self.write_runtime_status()
         print("系统就绪，可以开始手柄控制。")
         self.is_ready = True
@@ -769,24 +922,32 @@ class RealTimeArmController:
         target_positions: dict[int, int] = {}
         for index, servo_id in enumerate(self.servo_ids):
             delta_deg = float(np.degrees(angles_rad[index] - self.reference_angles_rad[index]))
-            raw_position = int(
-                round(
-                    self.reference_servo_positions[servo_id]
-                    + self.servo_directions[servo_id] * delta_deg * self.servo_ticks_per_degree
-                )
+            target_coord = (
+                self.reference_servo_coords[servo_id]
+                + self.servo_logical_directions[servo_id] * delta_deg * self.servo_units_per_degree[servo_id]
             )
             min_pos, max_pos = self.servo_limits[servo_id]
-            quantized_position = self.quantize_servo_position(raw_position)
+            quantized_position = self.servo_mappings[servo_id].logical_to_raw(target_coord)
+            if quantized_position <= min_pos or quantized_position >= max_pos:
+                self.debug_log(
+                    f"RAW_CLAMP servo={servo_id} coord={target_coord:.3f} raw={quantized_position} "
+                    f"limits=({min_pos},{max_pos})"
+                )
             target_positions[servo_id] = max(min_pos, min(max_pos, quantized_position))
 
         return target_positions
 
     def compute_next_servo_command(self) -> tuple[dict[int, int], int]:
         if self.target_angles_rad is None:
-            return self.current_servo_positions.copy(), max(50, int(self.update_interval * 1000))
+            return self.command_servo_positions.copy(), self.min_command_time_ms
 
         desired_positions = self.angles_to_servo_positions(self.target_angles_rad)
         self.target_servo_positions = desired_positions
+        self.debug_log(
+            f"COMMAND_DESIRED feedback={self.current_servo_positions} command={self.command_servo_positions} "
+            f"desired={desired_positions} "
+            f"target_xyz=({self.target_position[0]:.3f},{self.target_position[1]:.3f},{self.target_position[2]:.3f})"
+        )
 
         now = time.perf_counter()
         if self.last_send_time is None:
@@ -800,13 +961,14 @@ class RealTimeArmController:
         for servo_id in self.servo_ids:
             self.servo_tick_budget[servo_id] += self.max_servo_speed_ticks_per_sec * elapsed
 
-            current_position = self.current_servo_positions[servo_id]
+            current_position = self.command_servo_positions[servo_id]
             desired_position = desired_positions[servo_id]
             position_error = desired_position - current_position
             available_ticks = int(self.servo_tick_budget[servo_id])
 
             if abs(position_error) <= self.position_tolerance_ticks:
                 next_position = current_position
+                self.servo_tick_budget[servo_id] = 0.0
             elif available_ticks < self.min_effective_move_ticks:
                 next_position = current_position
             else:
@@ -822,7 +984,12 @@ class RealTimeArmController:
             min_pos, max_pos = self.servo_limits[servo_id]
             next_positions[servo_id] = max(min_pos, min(max_pos, next_position))
 
-        time_ms = max(50, int((max_move_ticks / self.max_servo_speed_ticks_per_sec) * 1000)) if max_move_ticks else 50
+        time_ms = (
+            max(self.min_command_time_ms, int((max_move_ticks / self.max_servo_speed_ticks_per_sec) * 1000))
+            if max_move_ticks
+            else self.min_command_time_ms
+        )
+        self.debug_log(f"COMMAND_NEXT next={next_positions} time_ms={time_ms} max_move_ticks={max_move_ticks}")
         return next_positions, time_ms
 
     def send_servo_positions(self) -> bool:
@@ -837,12 +1004,15 @@ class RealTimeArmController:
                 and self.tooling_target_position != self.last_sent_tooling_position
             )
             if next_positions == self.last_sent_positions and not tooling_changed:
+                self.debug_log(f"SEND_SKIP unchanged next={next_positions}")
                 return True
 
             targets = [(servo_id, next_positions[servo_id]) for servo_id in self.servo_ids]
             if self.tooling_config is not None and self.tooling_target_position is not None:
                 targets.append((self.tooling_config.servo_id, self.tooling_target_position))
+            self.debug_log(f"SEND targets={targets} time_ms={time_ms}")
             self.driver.set_servo_positions(targets, time_ms)
+            self.command_servo_positions = next_positions.copy()
             self.last_sent_positions = next_positions.copy()
             if self.tooling_config is not None:
                 self.last_sent_tooling_position = self.tooling_target_position
@@ -850,6 +1020,7 @@ class RealTimeArmController:
             return True
         except Exception as exc:
             self.safety_fault_message = f"发送舵机指令失败: {exc}"
+            self.debug_log(f"SEND_ERROR error={exc}")
             return False
 
     def check_safety_guard(self) -> bool:
@@ -881,11 +1052,23 @@ class RealTimeArmController:
             return True, False
 
         previous_buttons = self.last_buttons.copy()
-        left_x, left_y, right_y, buttons = self.gamepad.read()
-        self.last_axes_raw = (left_x, left_y, right_y)
-        left_x, left_y, right_y = self.filter_axes(left_x, left_y, right_y)
-        self.last_axes = (left_x, left_y, right_y)
+        dpad_x, dpad_y, right_y, buttons = self.gamepad.read()
+        self.last_axes_raw = (dpad_x, dpad_y, right_y)
+        dpad_x, dpad_y, right_y = self.filter_axes(dpad_x, dpad_y, right_y)
+        self.last_axes = (dpad_x, dpad_y, right_y)
+        dpad_left_x, dpad_left_y, dpad_right_y = self.gamepad_to_dpad_axes(dpad_x, dpad_y, right_y)
+        self.last_dpad_axes = (dpad_left_x, dpad_left_y, dpad_right_y)
+        motion_left_x, motion_left_y, motion_right_y = self.smooth_dpad_axes(self.last_dpad_axes)
+        self.last_motion_dpad_axes = (motion_left_x, motion_left_y, motion_right_y)
         self.last_buttons = buttons.copy()
+        self.debug_log(
+            "GAMEPAD "
+            f"raw=({self.last_axes_raw[0]:+.3f},{self.last_axes_raw[1]:+.3f},{self.last_axes_raw[2]:+.3f}) "
+            f"filtered=({dpad_x:+.3f},{dpad_y:+.3f},{right_y:+.3f}) "
+            f"dpad=({dpad_left_x:+.0f},{dpad_left_y:+.0f},{dpad_right_y:+.0f}) "
+            f"motion=({motion_left_x:+.2f},{motion_left_y:+.2f},{motion_right_y:+.2f}) "
+            f"buttons={buttons}"
+        )
 
         if buttons["a"]:
             return False, False
@@ -900,17 +1083,18 @@ class RealTimeArmController:
             self.cycle_sensor_frame_mode()
 
         tooling_changed = self.update_tooling_from_buttons(buttons)
-        if max(abs(left_x), abs(left_y), abs(right_y)) < 0.01:
+        if max(abs(motion_left_x), abs(motion_left_y), abs(motion_right_y)) < 0.01:
+            self.debug_log(f"GAMEPAD_IDLE tooling_changed={tooling_changed}")
             return True, tooling_changed
 
         new_position = self.target_position.copy()
-        delta_x_user = left_x * self.speed_xy * self.update_interval
-        delta_y_user = -left_y * self.speed_xy * self.update_interval
+        delta_x_user = motion_left_x * self.speed_xy * self.update_interval
+        delta_y_user = -motion_left_y * self.speed_xy * self.update_interval
         cos_angle = float(np.cos(self.xy_rotation_rad))
         sin_angle = float(np.sin(self.xy_rotation_rad))
         delta_x_model = cos_angle * delta_x_user - sin_angle * delta_y_user
         delta_y_model = sin_angle * delta_x_user + cos_angle * delta_y_user
-        delta_z_model = -right_y * self.speed_z * self.update_interval
+        delta_z_model = -motion_right_y * self.speed_z * self.update_interval
 
         if self.safe_scan_mode == "X":
             delta_y_model = 0.0
@@ -925,6 +1109,10 @@ class RealTimeArmController:
         new_position[0] += delta_x_model
         new_position[1] += delta_y_model
         new_position[2] += delta_z_model
+        self.debug_log(
+            f"POSE_DELTA dxyz=({delta_x_model:+.3f},{delta_y_model:+.3f},{delta_z_model:+.3f}) "
+            f"candidate=({new_position[0]:.3f},{new_position[1]:.3f},{new_position[2]:.3f})"
+        )
 
         if self.enforce_workspace_bounds:
             bounds = self.robot.get_workspace_bounds()
@@ -933,6 +1121,7 @@ class RealTimeArmController:
             new_position[2] = np.clip(new_position[2], bounds["z_min"], bounds["z_max"])
 
         if np.allclose(new_position, self.target_position, atol=1e-6):
+            self.debug_log("POSE_SKIP unchanged_after_limits")
             return True, tooling_changed
 
         angles_rad, success = inverse_kinematics(
@@ -942,11 +1131,19 @@ class RealTimeArmController:
             self.params,
         )
         if not success:
+            self.debug_log(
+                f"IK_FAIL xyz=({new_position[0]:.3f},{new_position[1]:.3f},{new_position[2]:.3f})"
+            )
             return True, tooling_changed
 
         self.target_position = new_position
         self.target_angles_rad = angles_rad
         self.target_servo_positions = self.angles_to_servo_positions(angles_rad)
+        self.debug_log(
+            "IK_OK "
+            f"angles_deg={[round(float(value), 3) for value in np.degrees(angles_rad)]} "
+            f"target_raw={self.target_servo_positions}"
+        )
         return True, True
 
     def print_status(self) -> None:
@@ -962,7 +1159,7 @@ class RealTimeArmController:
             return
 
         print("\n开始实时控制。")
-        print("左摇杆控制 X/Y，右摇杆控制 Z，A 退出，B 记录点，X 切换 safe scan。")
+        print("十字键控制 X/Y，右摇杆控制 Z，A 退出，B 记录点，X 切换 safe scan。")
         print(f"实时状态覆盖写入: {self.runtime_status_path.name}")
 
         try:
@@ -1007,7 +1204,7 @@ class RealTimeArmController:
 
         self.sync_sensor_feedback(force=True)
         print("\nStart realtime control.")
-        print("Left stick -> X/Y, right stick -> Z, A -> quit, B -> record, X -> safe scan.")
+        print("D-pad -> X/Y, right stick -> Z, A -> quit, B -> record, X -> safe scan.")
         print("Y -> sensor frame mode, LB/RB -> tooling servo if servo4 is configured.")
         print(f"Runtime status file: {self.runtime_status_path.name}")
 
@@ -1045,8 +1242,14 @@ class RealTimeArmController:
 
     def cleanup(self) -> None:
         try:
+            self.flush_debug_log()
             self.driver.close()
             print("串口已关闭。")
+        except Exception:
+            pass
+        try:
+            self.flush_debug_log()
+            self.debug_log_file.close()
         except Exception:
             pass
 
