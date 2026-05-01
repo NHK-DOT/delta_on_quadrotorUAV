@@ -17,7 +17,7 @@ duration = 0.0
 
 [camera]
 # USB 摄像头索引，通常第一个摄像头是 0。
-camera_index = 1
+camera_index = 0
 
 # 相机打开后端。Windows 常用 dshow，auto 会自动尝试多个后端。
 backend = "dshow"
@@ -39,7 +39,7 @@ buffer_size = 1
 width = 1920
 
 # 相机采集高度。这里按正常方式直接请求 1280x720。
-height = 1080
+height = 1440
 
 # 相机请求帧率。
 fps = 60
@@ -60,7 +60,7 @@ benchmark_pixel_formats = "all"
 
 [processing]
 # 检测时使用的软件降采样宽度。会对整张图缩小，但保留完整视角，不做裁剪。
-process_width = 1280
+process_width = 960
 
 # 检测时使用的软件降采样高度。设置成 540 就是把整张 1080p 图缩到 960x540 再检测。
 process_height = 720
@@ -87,7 +87,7 @@ detect_scale = 1.0
 roi_detect_scale = 1.0
 
 # 限制检测频率，单位 Hz。0 表示每帧都检测。
-max_detect_hz = 12.0
+max_detect_hz = 60.0
 
 # 每隔多少次检测强制全图重搜一次，避免一直卡在旧 ROI。
 full_frame_interval = 2

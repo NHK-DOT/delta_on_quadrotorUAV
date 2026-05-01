@@ -5,7 +5,7 @@ import math
 import time
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 import serial
@@ -13,6 +13,7 @@ import serial
 from .config import RobotParams, robot_params
 from .gcode import parse_gcode_file
 from .robot import DeltaRobot
+from .servo_mapping import ServoAxisMapping, default_mapping_config_path, load_servo_mappings_for_ids
 
 
 class Packet:
@@ -35,12 +36,28 @@ class BusServoDriver:
     CMD_MULT_SERVO_UNLOAD = 0x14
     CMD_MULT_SERVO_POS_READ = 0x15
 
-    def __init__(self, port: str, baudrate: int = 9600, timeout: float = 1.0, connect_delay: float = 0.2):
+    def __init__(
+        self,
+        port: str,
+        baudrate: int = 9600,
+        timeout: float = 1.0,
+        connect_delay: float = 0.2,
+        packet_trace_hook: Callable[[str, bytes, str], None] | None = None,
+    ):
         self.port = port
         self.baudrate = baudrate
         self.timeout = timeout
         self.connect_delay = connect_delay
         self.ser: serial.Serial | None = None
+        self.packet_trace_hook = packet_trace_hook
+
+    def _trace_packet(self, direction: str, packet: bytes, note: str = "") -> None:
+        if self.packet_trace_hook is None:
+            return
+        try:
+            self.packet_trace_hook(direction, packet, note)
+        except Exception:
+            pass
 
     def connect(self) -> None:
         if self.ser and self.ser.is_open:
@@ -66,6 +83,7 @@ class BusServoDriver:
         if not self.ser or not self.ser.is_open:
             raise RuntimeError("Serial port not open")
         packet = Packet.pack(cmd, params or [])
+        self._trace_packet("TX", packet, f"cmd=0x{cmd:02X}")
         self.ser.write(packet)
         self.ser.flush()
 
@@ -100,11 +118,20 @@ class BusServoDriver:
             if len(payload) != param_len:
                 continue
 
+            packet = Packet.HEADER + length_raw + cmd_raw + payload
+            self._trace_packet("RX", packet, f"cmd=0x{cmd:02X}")
+
             if expected_cmd is not None and cmd != expected_cmd:
+                self._trace_packet(
+                    "RX_SKIP",
+                    packet,
+                    f"expected=0x{expected_cmd:02X}, actual=0x{cmd:02X}",
+                )
                 continue
 
             return cmd, list(payload)
 
+        self._trace_packet("RX_TIMEOUT", b"", f"expected_cmd={expected_cmd!r}")
         raise TimeoutError(f"Timed out waiting for controller response, expected_cmd={expected_cmd!r}")
 
     def set_servo_positions(self, targets: list[tuple[int, int]], time_ms: int) -> None:
@@ -196,9 +223,34 @@ def joint_angles_to_servo_angles_deg(joint_angles_deg: np.ndarray, params: Robot
     )
 
 
-def servo_angles_to_positions(servo_angles_deg: np.ndarray, params: RobotParams) -> np.ndarray:
+def _default_servo_mappings_for_params(
+    params: RobotParams,
+    expected_count: int,
+) -> list[ServoAxisMapping] | None:
+    config_path = default_mapping_config_path()
+    if not config_path.exists():
+        return None
+
+    resolved = load_servo_mappings_for_ids(params.servo_ids[:expected_count], config_path=config_path, strict=True)
+    return [resolved[int(servo_id)] for servo_id in params.servo_ids[:expected_count]]
+
+
+def servo_angles_to_positions(
+    servo_angles_deg: np.ndarray,
+    params: RobotParams,
+    servo_mappings: list[ServoAxisMapping] | None = None,
+) -> np.ndarray:
     positions = np.zeros(len(servo_angles_deg), dtype=int)
+    mappings = servo_mappings or _default_servo_mappings_for_params(params, len(servo_angles_deg))
     for i, angle_deg in enumerate(servo_angles_deg):
+        if mappings is not None:
+            positions[i] = mappings[i].physical_deg_to_raw(
+                float(angle_deg),
+                physical_min_deg=params.servo_physical_angle_min_deg,
+                physical_max_deg=params.servo_physical_angle_max_deg,
+            )
+            continue
+
         pos_float = _map_linear(
             float(angle_deg),
             params.servo_physical_angle_min_deg,
@@ -308,7 +360,7 @@ def export_servo_commands_json(
         "servo_ids": params.servo_ids,
         "time_ms": time_ms,
         "angle_units": "deg",
-        "position_units": "lx225_0_to_1000",
+        "position_units": "lx225_raw",
         "commands": [asdict(command) for command in commands],
     }
     output_path = Path(output_path)
