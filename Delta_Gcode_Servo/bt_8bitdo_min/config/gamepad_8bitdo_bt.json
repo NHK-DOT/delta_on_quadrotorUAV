@@ -1,0 +1,124 @@
+{
+  "profile": "8bitdo_ultimate_2_wireless_bluetooth",
+  "device": {
+    "name_contains": "8BitDo Ultimate 2 Wireless",
+    "bus": "0005",
+    "vendor": "2dc8",
+    "product": "6012",
+    "device_path": ""
+  },
+  "bluetooth": {
+    "mac_config": "bluetooth_mac.conf"
+  },
+  "axes": {
+    "left_x": {
+      "code": 0,
+      "linux": "ABS_X",
+      "min": 0,
+      "center": 127,
+      "max": 255,
+      "deadzone": 15,
+      "invert": false,
+      "kind": "stick"
+    },
+    "left_y": {
+      "code": 1,
+      "linux": "ABS_Y",
+      "min": 0,
+      "center": 127,
+      "max": 255,
+      "deadzone": 15,
+      "invert": true,
+      "kind": "stick"
+    },
+    "right_x": {
+      "code": 2,
+      "linux": "ABS_Z",
+      "min": 0,
+      "center": 127,
+      "max": 255,
+      "deadzone": 15,
+      "invert": false,
+      "kind": "stick"
+    },
+    "right_y": {
+      "code": 5,
+      "linux": "ABS_RZ",
+      "min": 0,
+      "center": 127,
+      "max": 255,
+      "deadzone": 15,
+      "invert": true,
+      "kind": "stick"
+    },
+    "rt": {
+      "code": 9,
+      "linux": "ABS_GAS",
+      "min": 0,
+      "max": 255,
+      "deadzone": 0,
+      "invert": false,
+      "kind": "trigger"
+    },
+    "lt": {
+      "code": 10,
+      "linux": "ABS_BRAKE",
+      "min": 0,
+      "max": 255,
+      "deadzone": 0,
+      "invert": false,
+      "kind": "trigger"
+    },
+    "dpad_x": {
+      "code": 16,
+      "linux": "ABS_HAT0X",
+      "min": -1,
+      "center": 0,
+      "max": 1,
+      "deadzone": 0,
+      "invert": false,
+      "kind": "hat"
+    },
+    "dpad_y": {
+      "code": 17,
+      "linux": "ABS_HAT0Y",
+      "min": -1,
+      "center": 0,
+      "max": 1,
+      "deadzone": 0,
+      "invert": false,
+      "kind": "hat"
+    }
+  },
+  "buttons": {
+    "south": {"code": 304, "linux": "BTN_SOUTH", "xbox": "A", "position": "bottom"},
+    "east": {"code": 305, "linux": "BTN_EAST", "xbox": "B", "position": "right"},
+    "north": {"code": 307, "linux": "BTN_NORTH", "xbox": "Y", "position": "top"},
+    "west": {"code": 308, "linux": "BTN_WEST", "xbox": "X", "position": "left"},
+    "lb": {"code": 310, "linux": "BTN_TL", "xbox": "LB"},
+    "rb": {"code": 311, "linux": "BTN_TR", "xbox": "RB"},
+    "lt_click": {"code": 312, "linux": "BTN_TL2", "xbox": "LT digital"},
+    "rt_click": {"code": 313, "linux": "BTN_TR2", "xbox": "RT digital"},
+    "select": {"code": 314, "linux": "BTN_SELECT", "xbox": "View"},
+    "start": {"code": 315, "linux": "BTN_START", "xbox": "Menu"},
+    "mode": {"code": 316, "linux": "BTN_MODE", "xbox": "Home"},
+    "thumb_l": {"code": 317, "linux": "BTN_THUMBL", "xbox": "L3"},
+    "thumb_r": {"code": 318, "linux": "BTN_THUMBR", "xbox": "R3"},
+    "extra_1": {"code": 704, "linux": "BTN_TRIGGER_HAPPY1"},
+    "extra_2": {"code": 705, "linux": "BTN_TRIGGER_HAPPY2"},
+    "extra_3": {"code": 706, "linux": "BTN_TRIGGER_HAPPY3"},
+    "extra_4": {"code": 707, "linux": "BTN_TRIGGER_HAPPY4"},
+    "extra_5": {"code": 708, "linux": "BTN_TRIGGER_HAPPY5"},
+    "extra_6": {"code": 709, "linux": "BTN_TRIGGER_HAPPY6"},
+    "extra_7": {"code": 710, "linux": "BTN_TRIGGER_HAPPY7"},
+    "extra_8": {"code": 711, "linux": "BTN_TRIGGER_HAPPY8"}
+  },
+  "actions": {
+    "quit": "south",
+    "record": "east",
+    "safe_scan": "west",
+    "sensor_frame": "north",
+    "tooling_close": "lb",
+    "tooling_open": "rb"
+  }
+}
