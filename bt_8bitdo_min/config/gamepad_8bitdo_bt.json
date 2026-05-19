@@ -86,15 +86,17 @@
       "center": 0,
       "max": 1,
       "deadzone": 0,
-      "invert": false,
+      "invert": true,
       "kind": "hat"
     }
   },
   "buttons": {
     "south": {"code": 304, "linux": "BTN_SOUTH", "xbox": "A", "position": "bottom"},
     "east": {"code": 305, "linux": "BTN_EAST", "xbox": "B", "position": "right"},
+    "c": {"code": 306, "linux": "BTN_C", "xbox": "C"},
     "north": {"code": 307, "linux": "BTN_NORTH", "xbox": "Y", "position": "top"},
     "west": {"code": 308, "linux": "BTN_WEST", "xbox": "X", "position": "left"},
+    "z": {"code": 309, "linux": "BTN_Z", "xbox": "Z"},
     "lb": {"code": 310, "linux": "BTN_TL", "xbox": "LB"},
     "rb": {"code": 311, "linux": "BTN_TR", "xbox": "RB"},
     "lt_click": {"code": 312, "linux": "BTN_TL2", "xbox": "LT digital"},
@@ -120,5 +122,20 @@
     "sensor_frame": "north",
     "tooling_close": "lb",
     "tooling_open": "rb"
+  },
+  "legacy_control": {
+    "axes": {
+      "x": {"source": "dpad_x", "scale": 1.0},
+      "y": {"source": "dpad_y", "scale": 1.0},
+      "z": {"source": "right_y", "scale": -1.0}
+    },
+    "buttons": {
+      "a": ["south"],
+      "b": ["east"],
+      "x": ["west"],
+      "y": ["north"],
+      "lb": ["lb"],
+      "rb": ["rb"]
+    }
   }
 }

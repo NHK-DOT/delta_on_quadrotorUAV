@@ -12,9 +12,18 @@ python3 --version
 if command -v apt-get >/dev/null 2>&1; then
   echo "[2/6] Install runtime tools"
   sudo apt-get update
-  sudo apt-get install -y bluez evtest
+  sudo apt-get install -y bluez evtest python3-serial
 else
   echo "apt-get not found; skip package install."
+fi
+
+if ! python3 -c "import serial" >/dev/null 2>&1; then
+  echo "ERROR: Python module 'serial' is still missing."
+  echo "Install it with:"
+  echo "  sudo apt-get install -y python3-serial"
+  echo "or:"
+  echo "  python3 -m pip install --user pyserial==3.5"
+  exit 2
 fi
 
 echo "[3/6] Prepare local folders"
@@ -27,7 +36,7 @@ fi
 
 echo "[5/6] Install udev rule"
 sudo tee "$UDEV_RULE" >/dev/null <<'EOF'
-SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="8BitDo Ultimate 2 Wireless", MODE="0660", GROUP="input"
+SUBSYSTEM=="input", KERNEL=="event*", ATTRS{name}=="8BitDo Ultimate 2 Wireless", MODE="0660", GROUP="input", SYMLINK+="input/8bitdo-ultimate2"
 SUBSYSTEM=="input", KERNEL=="event*", ATTRS{idVendor}=="2dc8", ATTRS{idProduct}=="6012", MODE="0660", GROUP="input"
 EOF
 sudo udevadm control --reload-rules
@@ -42,6 +51,13 @@ if [ -f "$CONFIG_FILE" ]; then
 fi
 
 echo "Bluetooth connect check"
+if [ -z "${GAMEPAD_MAC:-}" ] && [ -n "${GAMEPAD_NAME:-}" ] && command -v bluetoothctl >/dev/null 2>&1; then
+  GAMEPAD_MAC="$(bluetoothctl devices | awk -v name="$GAMEPAD_NAME" 'index($0, name) {print $2; exit}')"
+  if [ -n "$GAMEPAD_MAC" ]; then
+    echo "Found ${GAMEPAD_NAME}: ${GAMEPAD_MAC}"
+  fi
+fi
+
 if [ -n "${GAMEPAD_MAC:-}" ]; then
   if command -v bluetoothctl >/dev/null 2>&1; then
     bluetoothctl <<EOF

@@ -36,19 +36,26 @@ def main(argv=None):
             reader.pump(timeout=interval)
             snapshot = reader.state.snapshot()
             axes = snapshot["axes_normalized"]
+            ctrl_x, ctrl_y, ctrl_z, legacy_buttons = reader.state.legacy_tuple()
             actions = snapshot["actions"]
             active = [name for name, pressed in sorted(actions.items()) if pressed]
+            pressed = [name for name, value in sorted(legacy_buttons.items()) if value]
             line = (
-                "LX={left_x:+.3f} LY={left_y:+.3f} "
+                "CTRL_X={ctrl_x:+.0f} CTRL_Y={ctrl_y:+.0f} CTRL_Z={ctrl_z:+.0f} "
+                "raw LX={left_x:+.3f} LY={left_y:+.3f} "
                 "RX={right_x:+.3f} RY={right_y:+.3f} "
-                "LT={lt:+.3f} RT={rt:+.3f} active={active}"
+                "LT={lt:+.3f} RT={rt:+.3f} buttons={buttons} active={active}"
             ).format(
+                ctrl_x=ctrl_x,
+                ctrl_y=ctrl_y,
+                ctrl_z=ctrl_z,
                 left_x=axes.get("left_x", 0.0),
                 left_y=axes.get("left_y", 0.0),
                 right_x=axes.get("right_x", 0.0),
                 right_y=axes.get("right_y", 0.0),
                 lt=axes.get("lt", 0.0),
                 rt=axes.get("rt", 0.0),
+                buttons=",".join(pressed) if pressed else "-",
                 active=",".join(active) if active else "-",
             )
             print("\r" + line[:160].ljust(160), end="")

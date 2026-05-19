@@ -68,6 +68,33 @@ def build_button_stats(state):
     return stats
 
 
+def update_unknown_stats(stats, event_type, code, value):
+    key = str(code)
+    if key not in stats:
+        stats[key] = {
+            "code": code,
+            "linux": event_code_name(event_type, code),
+            "events": 0,
+            "press_count": 0,
+            "release_count": 0,
+            "observed_min": int(value),
+            "observed_max": int(value),
+            "last": int(value),
+        }
+
+    stat = stats[key]
+    int_value = int(value)
+    stat["events"] += 1
+    stat["observed_min"] = min(stat["observed_min"], int_value)
+    stat["observed_max"] = max(stat["observed_max"], int_value)
+    stat["last"] = int_value
+    if event_type == EV_KEY:
+        if int_value == 1:
+            stat["press_count"] += 1
+        elif int_value == 0:
+            stat["release_count"] += 1
+
+
 def write_header(log_file, config, device_path, device_meta, duration):
     log_file.write("# 8BitDo Bluetooth gamepad one-shot log\n")
     log_file.write("# overwritten_at=%s\n" % datetime.now().isoformat(timespec="seconds"))
@@ -124,6 +151,8 @@ def run_test(args):
         state = GamepadState(config, fd=event_file.fileno())
         axis_stats = build_axis_stats(state)
         button_stats = build_button_stats(state)
+        unmapped_axis_stats = {}
+        unmapped_button_stats = {}
         start = time.monotonic()
         deadline = start + args.duration
         raw_event_count = 0
@@ -155,6 +184,8 @@ def run_test(args):
                     stat["last"] = int(value)
                     stat["events"] += 1
                     normalized = "%.3f" % state.normalized_axis(mapped_name)
+                elif event_type == EV_ABS:
+                    update_unknown_stats(unmapped_axis_stats, event_type, code, value)
                 elif event_type == EV_KEY and mapped_name in button_stats:
                     stat = button_stats[mapped_name]
                     if int(value) == 1:
@@ -163,6 +194,8 @@ def run_test(args):
                         stat["release_count"] += 1
                     stat["last"] = bool(value)
                     stat["events"] += 1
+                elif event_type == EV_KEY:
+                    update_unknown_stats(unmapped_button_stats, event_type, code, value)
 
                 if event_type in (EV_ABS, EV_KEY):
                     raw_event_count += 1
@@ -188,6 +221,8 @@ def run_test(args):
                 "raw_event_count": raw_event_count,
                 "axes": axis_stats,
                 "buttons": button_stats,
+                "unmapped_axes": unmapped_axis_stats,
+                "unmapped_buttons": unmapped_button_stats,
                 "final_snapshot": state.snapshot(),
             }
 
@@ -222,6 +257,38 @@ def run_test(args):
                         stat["events"],
                     )
                 )
+
+            if unmapped_axis_stats:
+                log_file.write("\nSUMMARY unmapped axes\n")
+                for code in sorted(unmapped_axis_stats.keys(), key=lambda item: int(item)):
+                    stat = unmapped_axis_stats[code]
+                    log_file.write(
+                        "code=%s linux=%s observed_min=%s observed_max=%s last=%s events=%s\n"
+                        % (
+                            stat["code"],
+                            stat["linux"],
+                            stat["observed_min"],
+                            stat["observed_max"],
+                            stat["last"],
+                            stat["events"],
+                        )
+                    )
+
+            if unmapped_button_stats:
+                log_file.write("\nSUMMARY unmapped buttons\n")
+                for code in sorted(unmapped_button_stats.keys(), key=lambda item: int(item)):
+                    stat = unmapped_button_stats[code]
+                    log_file.write(
+                        "code=%s linux=%s press=%s release=%s last=%s events=%s\n"
+                        % (
+                            stat["code"],
+                            stat["linux"],
+                            stat["press_count"],
+                            stat["release_count"],
+                            bool(stat["last"]),
+                            stat["events"],
+                        )
+                    )
 
         with json_path.open("w", encoding="utf-8") as json_file:
             json.dump(summary, json_file, indent=2, sort_keys=True)

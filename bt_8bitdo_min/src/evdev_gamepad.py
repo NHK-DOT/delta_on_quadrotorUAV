@@ -67,6 +67,21 @@ KEY_CODE_NAMES = {
     711: "BTN_TRIGGER_HAPPY8",
 }
 
+DEFAULT_LEGACY_AXES = {
+    "x": "dpad_x",
+    "y": "dpad_y",
+    "z": "right_y",
+}
+
+DEFAULT_LEGACY_BUTTONS = {
+    "a": "south",
+    "b": "east",
+    "x": "west",
+    "y": "north",
+    "lb": "lb",
+    "rb": "rb",
+}
+
 
 def package_root():
     return Path(__file__).resolve().parents[1]
@@ -330,24 +345,48 @@ class GamepadState(object):
     def action_buttons(self):
         actions = {}
         for action_name, button_name in self.config.get("actions", {}).items():
-            actions[action_name] = self.button_value(button_name)
+            actions[action_name] = self.mapped_button(button_name)
         return actions
 
+    def legacy_config(self):
+        config = self.config.get("legacy_control", {})
+        return config if isinstance(config, dict) else {}
+
+    def mapped_axis(self, logical_name):
+        axis_config = self.legacy_config().get("axes", {})
+        item = axis_config.get(logical_name, DEFAULT_LEGACY_AXES.get(logical_name, logical_name))
+        scale = 1.0
+
+        if isinstance(item, dict):
+            source = item.get("source", DEFAULT_LEGACY_AXES.get(logical_name, logical_name))
+            try:
+                scale = float(item.get("scale", 1.0))
+            except (TypeError, ValueError):
+                scale = 1.0
+            if bool(item.get("invert", False)):
+                scale = -scale
+        else:
+            source = item
+
+        return clamp(self.normalized_axis(str(source)) * scale, -1.0, 1.0)
+
+    def mapped_button(self, item):
+        if isinstance(item, (list, tuple)):
+            return any(self.button_value(str(name)) for name in item)
+        return self.button_value(str(item))
+
     def legacy_buttons(self):
+        button_config = self.legacy_config().get("buttons", {})
         return {
-            "a": self.button_value("south"),
-            "b": self.button_value("east"),
-            "x": self.button_value("west"),
-            "y": self.button_value("north"),
-            "lb": self.button_value("lb"),
-            "rb": self.button_value("rb"),
+            name: self.mapped_button(button_config.get(name, default_name))
+            for name, default_name in DEFAULT_LEGACY_BUTTONS.items()
         }
 
     def legacy_tuple(self):
         return (
-            self.normalized_axis("left_x"),
-            self.normalized_axis("left_y"),
-            self.normalized_axis("right_y"),
+            self.mapped_axis("x"),
+            self.mapped_axis("y"),
+            self.mapped_axis("z"),
             self.legacy_buttons(),
         )
 

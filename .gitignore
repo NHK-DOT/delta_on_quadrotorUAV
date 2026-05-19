@@ -1,6 +1,9 @@
 # Reference-only repos that should not be managed by the outer 78arm repo
 /armSettings/lerobot/
 
+# Vendor/reference bundles that are too large for git
+/LX-225 串行总线舵机/
+
 # Python cache and bytecode
 **/__pycache__/
 *.py[cod]
@@ -24,6 +27,7 @@ htmlcov/
 # Runtime outputs, logs, and captures
 **/output/
 **/logs/
+*.log
 
 # Camera calibration results
 /AprilTag_Vision/myAprilTag/calibration/
@@ -35,3 +39,23 @@ htmlcov/
 # Temporary local files
 *.tmp
 *.bak
+
+# OS/editor local files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Large binary packages and media
+*.7z
+*.rar
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+*.exe
+*.msi
+*.mp4
+*.mov
+*.avi
+*.mkv

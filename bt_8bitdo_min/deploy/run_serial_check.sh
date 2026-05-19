@@ -13,4 +13,4 @@ if ! python3 -c "import serial" >/dev/null 2>&1; then
   exit 2
 fi
 
-python3 "$ROOT_DIR/src/run_real_machine_bt.py" "$@"
+python3 "$ROOT_DIR/src/check_serial_readonly.py" "$@"
