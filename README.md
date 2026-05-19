@@ -1,10 +1,46 @@
 # 78arm
 
+中文说明: [README.zh-CN.md](README.zh-CN.md)
+
 Delta-arm simulation, calibration tools, servo driver code, sensor tools, and
 the minimal 8BitDo Bluetooth gamepad package for an onboard Ubuntu 18.04 Nano.
 
 The minimal onboard Nano + 8BitDo controller package was first organized on
 2026-05-12 and now lives under `bt_8bitdo_min/`.
+
+## Project Context
+
+This repository is for a lightweight delta-arm mounted on or tested for a UAV
+platform. The current real-machine control path is not just a gamepad demo: the
+onboard Ubuntu 18.04 Nano reads a Bluetooth gamepad, converts operator input
+into delta-arm XYZ motion, solves inverse kinematics, maps joint angles into
+raw bus-servo positions, and sends those commands through a Hiwonder xArm 1.6
+servo driver board to the physical servos.
+
+The 8BitDo package exists because the Xbox Series wireless controller was not
+stable on the Ubuntu 18.04 Nano Bluetooth stack used here. In local testing,
+that controller repeatedly bounced between connected and disconnected states.
+The workaround was to use an 8BitDo Ultimate 2 Wireless controller and read the
+Linux input event device directly, without relying on pygame or SDL mappings.
+
+## Hardware Control Path
+
+```text
+8BitDo Ultimate 2 Wireless
+  -> Ubuntu 18.04 Nano Bluetooth /dev/input/eventX
+  -> bt_8bitdo_min evdev reader
+  -> realtime delta-arm controller
+  -> XYZ target and inverse kinematics
+  -> raw LX bus-servo position commands
+  -> USB serial adapter
+  -> Hiwonder xArm 1.6 servo driver board
+  -> physical LX bus servos
+```
+
+The controller can move real servos. For that reason, the package keeps
+read-only test entrypoints separate from the real-machine entrypoint. Always run
+the mapping and serial preflight checks before opening the writable control
+loop.
 
 ## Main Folders
 
