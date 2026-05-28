@@ -14,6 +14,12 @@ English README: [README.md](README.md)
 
 因此当前改用 8BitDo Ultimate 2 Wireless 手柄。这个方案不依赖 pygame 或 SDL 的手柄映射，而是直接读取 Linux 的 `/dev/input/eventX` 事件设备，并通过配置文件维护按键和轴映射。这样更适合 Ubuntu 18.04 Nano 这种旧系统和嵌入式部署环境。
 
+## 机械臂实物照片
+
+| Delta 机械臂整体 | 执行机构侧 |
+| --- | --- |
+| <img src="images/1.jpg" alt="Delta 机械臂整体" width="420"> | <img src="images/884b798faf516a24bb9bb0af58b4d616.jpg" alt="Delta 机械臂执行机构侧" width="420"> |
+
 ## 实际硬件控制链路
 
 ```text

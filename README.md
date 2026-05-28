@@ -23,6 +23,12 @@ that controller repeatedly bounced between connected and disconnected states.
 The workaround was to use an 8BitDo Ultimate 2 Wireless controller and read the
 Linux input event device directly, without relying on pygame or SDL mappings.
 
+## Arm Photos
+
+| Delta arm overview | End-effector side |
+| --- | --- |
+| <img src="images/1.jpg" alt="Delta arm overview" width="420"> | <img src="images/884b798faf516a24bb9bb0af58b4d616.jpg" alt="Delta arm end-effector side" width="420"> |
+
 ## Hardware Control Path
 
 ```text
