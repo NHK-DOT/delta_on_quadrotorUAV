@@ -1,235 +1,148 @@
-··# Delta 机械臂 - 实机测试工具包
+# Delta real machine test
 
-⚠️ **这是实物机械臂的实时控制工具包** ⚠️
+This folder is the current mainline for the real Delta arm hand-controller test.
 
-**⚠️ 重要: 在运行 gamepad_controller.py 之前，务必确保三个舵机位置都在 1000！**
+Use `gamepad_controller.py` for Xbox control. The older minimal 8BitDo test package is not the control mainline.
 
-包含两个工具：
-1. **servo_calibration.py** - 单个舵机逐步测试工具
-2. **gamepad_controller.py** - Xbox 手柄实时控制工具（需先调整舵机到 1000）
+## Safety model
 
----
+`gamepad_controller.py` now treats the driver feedback as the real state source before control starts.
 
-## ⚠️ 重要安全提示
+Startup flow:
 
-**在运行任何手柄控制程序之前，必须执行以下步骤：**
+1. Connect serial bus and Xbox controller.
+2. Initialize the configured reference pose from `RobotParams.home_position`.
+3. Read current servo feedback from the driver board.
+4. If feedback is already near the reference raw positions, enter control directly.
+5. If feedback is not near the reference pose, print current and target raw positions.
+6. Only after typing `HOME`, slowly move from the current feedback state to the configured reference pose.
 
-### 第一步：确保舵机位置都在 1000
-
-1. 运行校准工具
-```powershell
-python servo_calibration.py
-```
-
-2. 逐个测试每个舵机 (1, 2, 3)
-```
-选择: 1 → + (多次) → 直到位置显示 1000 → q
-选择: 2 → + (多次) → 直到位置显示 920 (舵机2上限) → q
-选择: 3 → + (多次) → 直到位置显示 1000 → q
-```
-
-3. 确认所有舵机位置正确后再继续
-
-### 第二步：运行手柄控制程序
-
-只有确认舵机都在安全位置后，才能运行：
-```powershell
-python gamepad_controller.py
-```
-
-程序会要求确认：
-```
-请确认:
-  1. 三个舵机当前位置都在 1000 (最大值)
-  2. 机械臂处于安全位置，周围没有障碍
-  3. 已做好准备进行控制
-
-是否准备好了？(y/n):
-```
-
-**必须输入 `y` 才能继续控制**
-
----
-
-### 1. 安装 pygame（用于手柄识别）
-
-```powershell
-pip install pygame
-```
-
-### 2. 硬件连接
-
-- USB 转 RS485 模块连接到 COM9
-- 三个 LX-225 总线舵机已接线并供电
-- 舵机 ID: 1, 2, 3
-- 波特率: 9600
-
----
-
-## 工具 1: servo_calibration.py
-
-**用途** : 安全的逐舵机增量测试（+/-10 位置）
-
-### 使用方法
-
-```powershell
-python servo_calibration.py
-```
-
-### 操作流程
-
-1. 输入串口号（默认 COM9）
-2. 选择要调试的舵机 (1/2/3)
-3. 使用命令：
-   - `+` : 增加 10 位置
-   - `-` : 减少 10 位置
-   - `++` : 增加 50 位置（需确认）
-   - `--` : 减少 50 位置（需确认）
-   - `c`  : 自定义位置（需确认）
-   - `q` : 回到主菜单
-
-### 舵机范围
-
-| 舵机 | 范围 | 说明 |
-|------|------|------|
-| 1 | 500-1000 | 标准范围 |
-| 2 | 500-920 | 受机械限制 |
-| 3 | 500-1000 | 标准范围 |
-
----
-
-## 工具 2: gamepad_controller.py
-
-**用途** : Xbox 手柄实时探索机械臂工作空间
-
-### 使用方法
-
-```powershell
-python gamepad_controller.py
-```
-
-### 手柄映射
-
-| 控制 | 动作 |
-|------|------|
-| 十字键左/右 | X 轴左右移动 |
-| 十字键上 | 执行机构向后 |
-| 十字键下 | 执行机构向前 |
-| 右摇杆上/下 | Z 轴上下移动 |
-| 按钮 A | 退出 |
-
-### 工作原理
-
-1. **实时读取手柄** - 50Hz 更新频率
-2. **逆运动学计算** - 自动将笛卡尔坐标转换为关节角
-3. **舵机速度限制** - 最大 20 位置/秒，防止快速损伤
-4. **实时反馈** - 每秒显示末端位置、关节角、舵机位置
-
-### 工作空间约束
-
-- **X范围**: [-150, 150] mm
-- **Y范围**: [-150, 150] mm
-- **Z范围**: [110, 280] mm
-
-超出范围会自动限制，不会发送越界指令。
-
-### 参数调整
-
-编辑文件中的这两个参数控制手柄灵敏度：
+The startup HOME speed is intentionally lower than normal manual speed:
 
 ```python
-self.speed_xy = 2.0   # XY 平面速度 (mm/帧) - 改小为更稳定
-self.speed_z = 1.5    # Z 垂直速度 (mm/帧)
+self.startup_home_servo_speed_ticks_per_sec = 120.0
+self.startup_home_timeout_sec = 20.0
 ```
 
----
+Do not run this script with the arm powered if the mechanical linkage is blocked, assembled incorrectly, or outside a known safe posture. The script will command real servos after the `HOME` or `PLAY` confirmations.
 
-## 使用流程总结
+## Xbox controls
 
-**必须按照这个顺序：**
+| Control | Action |
+| --- | --- |
+| D-pad left/right | Move model X |
+| D-pad up/down | Move model Y |
+| Right stick up/down | Move model Z |
+| A | Quit |
+| B | Sample current feedback point |
+| X | Cycle safe-scan axis mode |
+| Y | Cycle sensor-frame mode |
+| LB/RB | Move tooling servo if servo 4 is configured |
+| BACK | Toggle A/B playback mode |
+| START | Confirmed playback using the latest two sampled points |
 
-1. ✅ **第一次**: 运行 `servo_calibration.py`
-   - 逐个确认舵机位置都在 1000（舵机2在920）
-   - 测试+/-命令确保方向正确
+The current playback mode and sample count are written to `runtime_status.log`.
 
-2. ✅ **确认完成后**: 才能运行 `gamepad_controller.py`
-   - 程序会再次要求确认舵机位置
-   - 输入 `y` 才能开始控制
+## A/B playback modes
 
-3. ⚠️ **如果舵机在错误位置**
-   - 立即停止
-   - 重新运行校准工具调整位置
-   - 不要强行使用手柄控制
+Press `B` at two positions to store the latest A/B pair. Press `BACK` to choose a mode, then press `START`. The terminal asks for `PLAY` before motion starts.
 
----
+`LINE` mode:
 
-## 故障排查
+- Uses the two latest sampled points.
+- Requires the current feedback position to be close to either endpoint.
+- Moves in a Cartesian straight-line interpolation to the other endpoint.
 
-### 问题：串口连接失败
+`PICK_PLACE` mode:
 
-```
-✗ 连接失败: ...
-```
+- Uses the two latest sampled points as A and B.
+- Runs: current pose -> home -> A -> lifted A -> lifted B -> B -> lifted B -> home.
+- The lift Z is the highest of home/A/B plus `playback_lift_clearance_mm`, clipped by `workspace_z_max`.
 
-**解决方案：**
-1. 检查 USB 转 RS485 模块是否连接
-2. 确认 COM 口号是否正确（设备管理器）
-3. 尝试重新插拔 USB
+Relevant playback parameters in `gamepad_controller.py`:
 
-### 问题：找不到手柄
-
-```
-❌ 未检测到游戏杆/手柄
-```
-
-**解决方案：**
-1. 确保 Xbox 手柄已连接（有线或蓝牙）
-2. 手柄在设备管理器中显示
-3. 尝试重新启动程序
-
-### 问题：舵机不响应实时指令
-
-1. 先用 `servo_calibration.py` 验证单个舵机
-2. 检查逆运动学计算是否成功（查看终端输出）
-3. 观察舵机位置是否超出机械限制
-
----
-
-## 逆运动学说明
-
-`gamepad_controller.py` 使用你项目中的逆运动学模块自动转换：
-
-**末端位置 (XYZ) → 关节角度 (θ1, θ2, θ3) → 舵机位置 (0-1000)**
-
-- **输入**: 笛卡尔坐标 (X, Y, Z)
-- **输出**: 三个舵机位置值
-- **失败处理**: 如果求解失败，保持当前位置（安全机制）
-
----
-
-## 建议调试流程
-
-```
-第一步：单舵机校准
-  python servo_calibration.py
-  → 测试舵机 1/2/3 各自的+/-响应
-
-第二步：手柄探索
-  python gamepad_controller.py
-  → 用十字键缓慢扫描 XY 平面
-  → 观察Z轴上下运动
-  → 找出可达工作空间的边界
-
-第三步：记录关键位置
-  → 记录机械臂能自如运动的范围
-  → 避免超限位置
+```python
+self.playback_step_mm = 2.0
+self.playback_speed_mm_per_sec = 70.0
+self.playback_endpoint_tolerance_mm = 18.0
+self.playback_lift_clearance_mm = 30.0
 ```
 
----
+## Drift and workspace guards
 
-## 版本信息
+Manual control no longer lets an invisible virtual endpoint run far away from the real feedback pose.
 
-- **创建日期**: 2026-04-13
-- **状态**: 实机测试版本
-- **最大舵机速度**: 20 位置/秒 (安全限制)
-- **更新频率**: 50 Hz
+The controller:
+
+- Clamps target XYZ into the configured workspace before inverse kinematics.
+- Also applies a circular XY radius clamp using `workspace_xy_max`.
+- Rejects targets whose IK or servo raw mapping is outside configured limits.
+- Uses feedback re-anchoring when the commanded target is too far ahead of feedback.
+- Separates startup raw feedback from FK pose validity, so startup HOME can still use readable servo raw feedback before formal control.
+- Keeps normal servo commands rate-limited by `max_servo_speed_ticks_per_sec`.
+
+Main guard parameters:
+
+```python
+self.enforce_workspace_bounds = True
+self.enable_stall_guard = True
+self.max_target_lead_mm = 18.0
+self.target_reanchor_error_mm = 45.0
+self.max_servo_speed_ticks_per_sec = 400.0
+```
+
+## Geometry parameters currently used
+
+The Delta geometry is currently not loaded from a TOML/YAML file. It is read from the `RobotParams` dataclass in:
+
+`Delta_Gcode_Servo/delta_gcode_servo/config.py`
+
+Parameters directly affecting IK/FK and workspace:
+
+| Parameter | Current value | Meaning |
+| --- | ---: | --- |
+| `l1` | `100.0` | active upper arm length |
+| `l2` | `150.0` | passive lower arm length |
+| `l3` | `48.0` | platform/end-effector offset radius used by the model |
+| `servo_offset_x` | `75.0` | servo axis X offset in each arm plane |
+| `servo_offset_y` | `0.0` | currently defined but not materially used by the existing IK |
+| `servo_offset_z` | `41.231` | servo axis Z offset |
+| `workspace_z_min` | `110.0` | lower Z safety bound |
+| `workspace_z_max` | `280.0` | upper Z safety bound |
+| `workspace_xy_max` | `150.0` | X/Y square bound and XY radius bound |
+| `ball_joint_angle_limit` | `34.1 deg` | passive joint angular limit used by IK |
+| `servo_distribution` | `0, 120, 240 deg` | arm angular placement |
+| `home_position` | `[0, 0, 240]` | reference pose used at startup |
+
+Servo raw limits and mapping are loaded from:
+
+`lx225_tool_demo/config/lx225_tool.demo.toml`
+
+Current main arm mappings:
+
+| Servo | raw min | raw max | step |
+| --- | ---: | ---: | ---: |
+| 1 | `0` | `834` | `4` |
+| 2 | `0` | `770` | `4` |
+| 3 | `0` | `816` | `4` |
+
+Servo 4 is treated as optional tooling and uses its own mapping in the same TOML file.
+
+## Should the arm dimensions be measured?
+
+Yes, but do it in this order:
+
+1. First verify the current controller can start, HOME slowly, sample two points, and replay at low speed.
+2. Then measure and update the model dimensions.
+
+The most important measurements are `l1`, `l2`, `l3`, `servo_offset_x`, `servo_offset_z`, the real raw position at the mechanical reference pose for each servo, and the actual safe raw min/max before hitting linkage limits. The workspace bounds should be made conservative after the geometry and raw mapping are correct.
+
+## Runtime files
+
+The controller may generate:
+
+- `gamepad_diagnostic.log`
+- `runtime_status.log`
+- `workspace_points.csv`
+
+These are runtime outputs and should not be committed. `.gitignore` already ignores logs and the two machine-generated real-machine-test files.
