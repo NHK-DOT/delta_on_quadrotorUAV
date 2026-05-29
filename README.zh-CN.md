@@ -2,11 +2,17 @@
 
 English README: [README.md](README.md)
 
+开源协议：GNU GPL v3.0，见 [LICENSE](LICENSE)。上游 MIT 项目的版权声明保留在
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
+
 ## 项目定位
 
 这个仓库用于整理无人机挂载轻量 Delta 机械臂相关的代码和资料，包括机械臂仿真、舵机控制、总线舵机调试、IMU、AprilTag 视觉识别，以及当前正在使用的 8BitDo 蓝牙手柄实机控制包。
 
 当前重点是 `bt_8bitdo_min/`。它不是单纯读取手柄状态的演示程序，而是一条可以控制真实舵机的链路：机载 Ubuntu 18.04 Nano 读取蓝牙手柄输入，把操作量转换成机械臂末端 XYZ 运动，再经过 Delta 机械臂逆运动学、舵机映射和串口协议，最终通过幻尔 xArm 1.6 舵机驱动板驱动物理总线舵机。
+
+本项目的 Delta 机械臂结构思路和早期建模/控制方向借鉴自 Isaac Chasteau 的 MIT 开源项目
+[isaac879/Delta-Robot](https://github.com/isaac879/Delta-Robot)。本仓库里的建模、硬件布局、控制代码、传感器链路和部署方式已经按当前机械臂做了修改，但仍然保留对上游项目的来源声明和 MIT 版权声明。
 
 ## 为什么使用 8BitDo Ultimate 2 Wireless
 
@@ -14,11 +20,23 @@ English README: [README.md](README.md)
 
 因此当前改用 8BitDo Ultimate 2 Wireless 手柄。这个方案不依赖 pygame 或 SDL 的手柄映射，而是直接读取 Linux 的 `/dev/input/eventX` 事件设备，并通过配置文件维护按键和轴映射。这样更适合 Ubuntu 18.04 Nano 这种旧系统和嵌入式部署环境。
 
-## 机械臂实物照片
+## 机械臂实物与模型照片
 
-| Delta 机械臂整体 | 执行机构侧 |
+| 实机框架与电子部分 | 手持检查连杆机构 |
 | --- | --- |
-| <img src="images/1.jpg" alt="Delta 机械臂整体" width="420"> | <img src="images/884b798faf516a24bb9bb0af58b4d616.jpg" alt="Delta 机械臂执行机构侧" width="420"> |
+| <img src="images/1.jpg" alt="Delta 机械臂实机框架与电子部分" width="420"><br>实机框架、连杆、控制板和机载走线。 | <img src="images/884b798faf516a24bb9bb0af58b4d616.jpg" alt="Delta 机械臂手持检查连杆机构" width="420"><br>轻量 Delta 机械臂装配后进行手持检查。 |
+| <img src="images/9b5124927711c6a065732a5374151702.jpg" alt="Delta 机械臂连杆与改版打印件" width="420"><br>连杆/末端侧，展示已安装的改版打印件。 | <img src="images/0cb198a8a6041f6031b36bc2a0e89fff.jpg" alt="改版连杆座 CAD 概念" width="420"><br>改版连杆座/安装件 CAD 设计。 |
+| <img src="images/ed630aaf206b2373b458c409e840b7ce.jpg" alt="改版末端平台 CAD" width="420"><br>改版末端平台与轴承/连杆安装几何。 | <img src="images/bc97d03f7ef3bbd601feaae3bde8008b.jpg" alt="可打印或 CNC 的改版板件" width="420"><br>平面板件模型，可 3D 打印，也可导出后做 CNC。 |
+| <img src="images/6e8c580ad37580d7e83ef4b96af3ac27.jpg" alt="改版单个支架 CAD" width="420"><br>改版单个支架模型。 | <img src="images/6ffa0ed538995f449159233e0b68eb6e.jpg" alt="改版零件 3D 打印切片布局" width="420"><br>改版板件、连杆和支架的 3D 打印切片布局。 |
+
+## 机械建模和制造文件
+
+改版机械文件放在 `part_model_rev/`。该目录包含 SolidWorks 零件文件（`.SLDPRT`）和 `.3mf` 打印布局，用于继续迭代真实机械臂：
+
+- `.3mf` 可以作为 3D 打印的起点。
+- `.SLDPRT` 用于继续改尺寸、改孔位、改装配关系。
+- 需要打印时导出 STL/3MF；需要 CNC 时可以从 CAD 导出 STEP/DXF，再生成 CAM 加工路径。
+- 打印或加工前要按真实硬件复核孔径、轴承配合、舵机避让、碳管连杆尺寸和装配间隙。
 
 ## 实际硬件控制链路
 
@@ -41,6 +59,7 @@ English README: [README.md](README.md)
 - `bt_8bitdo_min/`：当前最小 8BitDo 蓝牙手柄控制包，包含只读测试、映射检查、串口预检和实机控制入口。
 - `Delta_Gcode_Servo/`：Delta 机械臂 G-code、逆运动学和总线舵机控制工具。
 - `Delta-Robot/`：原始 Delta 机械臂仿真和模型资源。
+- `part_model_rev/`：改版 SolidWorks/3MF 机械文件，可用于 3D 打印或导出后 CNC 加工。
 - `lx225_tool_demo/`：LX-225 总线舵机工具和 demo 配置。
 - `IMU/`：WT61C IMU 读取、可视化和 JSON 快照输出工具。
 - `AprilTag_Vision/`：AprilTag 视觉识别、相机标定和定位输出工具。
@@ -163,3 +182,11 @@ git add -n .
 ```
 
 确认不会把大文件或本地运行产物加入暂存区后，再正式提交。
+
+## 开源协议和上游声明
+
+本仓库整体以 GNU GPL v3.0 开源，见 [LICENSE](LICENSE)。
+
+Delta 机械臂结构思路和原始参考项目来自
+[isaac879/Delta-Robot](https://github.com/isaac879/Delta-Robot)。该上游项目由 Isaac Chasteau 以 MIT License 发布。MIT 版权声明已保留在
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。本仓库中的模型和代码已经针对当前硬件、控制栈、传感器和制造流程做了修改。

@@ -5,6 +5,9 @@
 Delta-arm simulation, calibration tools, servo driver code, sensor tools, and
 the minimal 8BitDo Bluetooth gamepad package for an onboard Ubuntu 18.04 Nano.
 
+License: GNU GPL v3.0. See [LICENSE](LICENSE). Upstream MIT notices are kept in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
 The minimal onboard Nano + 8BitDo controller package was first organized on
 2026-05-12 and now lives under `bt_8bitdo_min/`.
 
@@ -17,17 +20,40 @@ into delta-arm XYZ motion, solves inverse kinematics, maps joint angles into
 raw bus-servo positions, and sends those commands through a Hiwonder xArm 1.6
 servo driver board to the physical servos.
 
+The mechanical concept and part of the early delta-robot modeling/control
+direction were based on Isaac Chasteau's MIT-licensed
+[isaac879/Delta-Robot](https://github.com/isaac879/Delta-Robot). This project
+changes the modeling, hardware layout, control code, sensors, and deployment
+pipeline, but it still acknowledges that upstream project as the original idea
+source.
+
 The 8BitDo package exists because the Xbox Series wireless controller was not
 stable on the Ubuntu 18.04 Nano Bluetooth stack used here. In local testing,
 that controller repeatedly bounced between connected and disconnected states.
 The workaround was to use an 8BitDo Ultimate 2 Wireless controller and read the
 Linux input event device directly, without relying on pygame or SDL mappings.
 
-## Arm Photos
+## Arm Photos and Models
 
-| Delta arm overview | End-effector side |
+| Prototype frame and electronics | Prototype held for linkage inspection |
 | --- | --- |
-| <img src="images/1.jpg" alt="Delta arm overview" width="420"> | <img src="images/884b798faf516a24bb9bb0af58b4d616.jpg" alt="Delta arm end-effector side" width="420"> |
+| <img src="images/1.jpg" alt="Delta arm prototype frame and electronics" width="420"><br>Prototype frame, links, control board, and onboard wiring. | <img src="images/884b798faf516a24bb9bb0af58b4d616.jpg" alt="Delta arm prototype held for linkage inspection" width="420"><br>Assembled lightweight delta arm during manual inspection. |
+| <img src="images/9b5124927711c6a065732a5374151702.jpg" alt="Delta arm linkage and revised printed part" width="420"><br>Linkage/end-effector side with revised printed part installed. | <img src="images/0cb198a8a6041f6031b36bc2a0e89fff.jpg" alt="Revised CAD link mount concept" width="420"><br>Revised CAD concept for a link/mount part. |
+| <img src="images/ed630aaf206b2373b458c409e840b7ce.jpg" alt="Revised end-effector plate CAD" width="420"><br>Revised end-effector plate and bearing/link mounting geometry. | <img src="images/bc97d03f7ef3bbd601feaae3bde8008b.jpg" alt="Revised plate model for print or CNC" width="420"><br>Flat plate model suitable for 3D printing or CNC after export. |
+| <img src="images/6e8c580ad37580d7e83ef4b96af3ac27.jpg" alt="Revised link bracket CAD" width="420"><br>Revised single bracket model. | <img src="images/6ffa0ed538995f449159233e0b68eb6e.jpg" alt="3D print slicer layout for revised parts" width="420"><br>3D print slicer layout for revised plates, links, and brackets. |
+
+## Mechanical Model Files
+
+Revised mechanical files are stored in `part_model_rev/`. The folder contains
+SolidWorks part files (`.SLDPRT`) and a `.3mf` print layout. These files are
+intended for iteration on the physical arm:
+
+- Use the `.3mf` file as a direct 3D-print starting point.
+- Use the `.SLDPRT` files for CAD edits and dimensional changes.
+- Export STL/3MF for printing, or export STEP/DXF and generate CAM toolpaths
+  for CNC machining where the part geometry is appropriate.
+- Check hole diameters, bearing fits, servo clearance, and carbon-tube linkage
+  dimensions against the real hardware before printing or machining.
 
 ## Hardware Control Path
 
@@ -54,6 +80,8 @@ loop.
   read-only test entrypoints and a real-machine control entrypoint.
 - `Delta_Gcode_Servo/`: fuller delta robot G-code and servo control code.
 - `Delta-Robot/`: original delta robot simulation and model resources.
+- `part_model_rev/`: revised SolidWorks/3MF mechanical files for printing or
+  CNC-oriented manufacturing export.
 - `lx225_tool_demo/`: LX-225 bus-servo tool/demo configuration.
 - `IMU/`: WT61C IMU tools and latest snapshot output.
 - `AprilTag_Vision/`: AprilTag camera detection tools.
@@ -168,3 +196,15 @@ The gamepad event device is not fixed to `event8`. The code finds the current
 `/dev/input/eventX` automatically by name, bus, vendor, and product. Leave
 `config/gamepad_8bitdo_bt.json` `device.device_path` empty unless you are
 debugging a specific event device.
+
+## License and Attribution
+
+This repository is distributed under the GNU General Public License v3.0. See
+[LICENSE](LICENSE).
+
+The upstream delta-robot idea and original reference project came from
+[isaac879/Delta-Robot](https://github.com/isaac879/Delta-Robot), which is
+MIT-licensed by Isaac Chasteau. The upstream MIT notice is preserved in
+[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). The model files and code in
+this repository have been modified for this project's hardware, control stack,
+sensors, and manufacturing workflow.
