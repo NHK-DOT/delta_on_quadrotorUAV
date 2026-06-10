@@ -69,7 +69,23 @@ def estimate_base_camera(dataset: HandEyeDataset) -> dict[str, Any] | None:
     }
 
 
-def estimate_wrist_camera_direct(dataset: HandEyeDataset) -> dict[str, Any] | None:
+def estimate_object_camera_mount(dataset: HandEyeDataset) -> dict[str, Any] | None:
+    for known_name in ("tool_T_object_camera", "tool_T_wrist_camera"):
+        tool_T_object_camera = dataset.known_transforms.get(known_name)
+        if tool_T_object_camera is None:
+            continue
+        return {
+            "transform_name": "tool_T_object_camera",
+            "method": f"known_mount:{known_name}",
+            "sample_count": 0,
+            "used_samples": [],
+            "transform": tool_T_object_camera,
+            "residuals": {},
+        }
+    return None
+
+
+def estimate_object_camera_from_base_tag_direct(dataset: HandEyeDataset) -> dict[str, Any] | None:
     base_T_base_tag = dataset.known_transforms.get("base_T_base_tag")
     if base_T_base_tag is None:
         return None
@@ -87,14 +103,14 @@ def estimate_wrist_camera_direct(dataset: HandEyeDataset) -> dict[str, Any] | No
     if not estimates:
         return None
 
-    tool_T_wrist_camera = average_transforms(estimates)
-    errors = [transform_error(tool_T_wrist_camera, estimate) for estimate in estimates]
+    tool_T_object_camera = average_transforms(estimates)
+    errors = [transform_error(tool_T_object_camera, estimate) for estimate in estimates]
     return {
-        "transform_name": "tool_T_wrist_camera",
-        "method": "direct_known_base_tag",
+        "transform_name": "tool_T_object_camera",
+        "method": "legacy_direct_known_base_tag",
         "sample_count": len(estimates),
         "used_samples": used_samples,
-        "transform": tool_T_wrist_camera,
+        "transform": tool_T_object_camera,
         "residuals": summarize_errors(errors),
     }
 
@@ -140,31 +156,42 @@ def estimate_wrist_camera_handeye(dataset: HandEyeDataset) -> dict[str, Any] | N
         t_target2cam,
         method=cv2.CALIB_HAND_EYE_TSAI,
     )
-    tool_T_wrist_camera = Transform.from_rt(r_cam2gripper, np.asarray(t_cam2gripper).reshape(3))
+    tool_T_object_camera = Transform.from_rt(r_cam2gripper, np.asarray(t_cam2gripper).reshape(3))
 
     if "base_T_base_tag" in dataset.known_transforms:
         base_T_base_tag = dataset.known_transforms["base_T_base_tag"]
         errors = []
         for base_T_tool, camera_T_target in zip(base_T_tools, camera_T_targets):
-            predicted = (base_T_tool @ tool_T_wrist_camera).inverse() @ base_T_base_tag
+            predicted = (base_T_tool @ tool_T_object_camera).inverse() @ base_T_base_tag
             errors.append(transform_error(predicted, camera_T_target))
     else:
         base_T_targets = [
-            base_T_tool @ tool_T_wrist_camera @ camera_T_target
+            base_T_tool @ tool_T_object_camera @ camera_T_target
             for base_T_tool, camera_T_target in zip(base_T_tools, camera_T_targets)
         ]
         avg_target = average_transforms(base_T_targets)
         errors = [transform_error(avg_target, estimate) for estimate in base_T_targets]
 
     return {
-        "transform_name": "tool_T_wrist_camera",
-        "method": "opencv_calibrateHandEye",
+        "transform_name": "tool_T_object_camera",
+        "method": "legacy_opencv_calibrateHandEye",
         "sample_count": len(base_T_tools),
         "used_samples": used_samples,
         "tool_rotation_span_deg": rotation_span_deg,
-        "transform": tool_T_wrist_camera,
+        "transform": tool_T_object_camera,
         "residuals": summarize_errors(errors),
     }
+
+
+def estimate_object_camera(dataset: HandEyeDataset, wrist_method: str = "direct") -> dict[str, Any] | None:
+    mount = estimate_object_camera_mount(dataset)
+    if mount is not None:
+        return mount
+    if wrist_method == "direct":
+        return estimate_object_camera_from_base_tag_direct(dataset)
+    if wrist_method == "handeye":
+        return estimate_wrist_camera_handeye(dataset)
+    raise ValueError(f"unknown wrist_method: {wrist_method}")
 
 
 def estimate_rotation_span_deg(transforms: list[Transform]) -> float:
@@ -210,20 +237,15 @@ def calibrate_dataset(dataset: HandEyeDataset, wrist_method: str = "direct") -> 
     else:
         result["results"]["base_camera"] = serialize_estimation(base_camera)
 
-    if wrist_method == "direct":
-        wrist_camera = estimate_wrist_camera_direct(dataset)
-    elif wrist_method == "handeye":
-        wrist_camera = estimate_wrist_camera_handeye(dataset)
-    else:
-        raise ValueError(f"unknown wrist_method: {wrist_method}")
+    object_camera = estimate_object_camera(dataset, wrist_method=wrist_method)
 
-    if wrist_camera is None:
+    if object_camera is None:
         result["warnings"].append(
-            "Skipped wrist camera calibration: need known_transforms.base_T_base_tag "
-            "and wrist_camera.camera_T_base_tag samples, or use --wrist-method handeye."
+            "Skipped object camera mount: provide known_transforms.tool_T_object_camera. "
+            "Legacy wrist-camera base-tag samples are still accepted for old datasets."
         )
     else:
-        result["results"]["wrist_camera"] = serialize_estimation(wrist_camera)
+        result["results"]["object_camera"] = serialize_estimation(object_camera)
 
     return result
 

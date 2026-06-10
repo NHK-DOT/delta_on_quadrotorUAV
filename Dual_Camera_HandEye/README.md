@@ -1,143 +1,81 @@
-# Dual Camera Hand-Eye Calibration Demo
+# Dual Camera Hand-Eye Demo
 
-这个目录给当前 78arm 的双相机方案做一个可落地的手眼标定 demo：
+这个目录给当前 78arm 的双相机手眼协同方案提供一个可验证 demo。它只复用现有
+`AprilTag_Vision/myAprilTag`、`IMU` 和实机控制代码的输出文件，不另写相机检测包，
+也不发送机械臂运动命令。
 
-- **底座相机 base camera**：固定在机械臂底座/机架上，看末端执行器上的 AprilTag，用来估计“手在哪里”。
-- **末端相机 wrist camera**：固定在末端执行器上，看底座/工作台上的 AprilTag，也用于识别抓取物和确认实际抓取情况。
+## 当前硬件布局
 
-核心目标不是先写复杂控制，而是先把所有视觉结果统一到机械臂基座坐标系 `base`，这样后面抓取点、AprilTag、末端位姿、相机测量都能在同一个坐标系里做判断。
+- **底座相机 `base_camera`**：固定在底座/机架上，观察末端执行器上表面的
+  AprilTag。它用于反推末端当前位置，并核验机器人 FK 的 `base_T_tool`。
+- **末端上表面 AprilTag `hand_tag`**：固定在新机械件上，和末端工具坐标系形成
+  刚性关系 `tool_T_hand_tag`。
+- **末端下表面抓取机构**：和末端工具坐标系同体安装，后续抓取点最终要落回
+  `base` 坐标系。
+- **侧面物体相机 `object_camera`**：安装在执行机构侧面，观察待抓取物体。它不再
+  假设必须看底座/工作台 AprilTag；它的安装外参来自 CAD/卡尺/装配测量：
+  `tool_T_object_camera`。
+- **`part_model_rev/999.STL`**：新加入的 IMU + AprilTag 固定件模型，用来约束
+  `tool_T_hand_tag`、IMU 和末端工具之间的机械关系。
 
-## 坐标系
-
-本 demo 使用下面的坐标命名：
+核心目标是把所有视觉结果统一到机械臂基座坐标系 `base`：
 
 ```text
-base                 机械臂基座坐标系，机器人正运动学/FK 输出的参考系
-tool                 末端执行器/法兰坐标系，机器人 FK 输出 base_T_tool
-base_camera          固定在底座上的相机坐标系
-wrist_camera         固定在末端执行器上的相机坐标系
-hand_tag             固定在末端执行器上的 AprilTag
-base_tag             固定在底座或工作台上的 AprilTag
+base_T_object = base_T_tool * tool_T_object_camera * object_camera_T_object
 ```
 
-变换名采用 `A_T_B`，意思是把 `B` 坐标系下的点变换到 `A` 坐标系。
-
-## 推荐硬件布置
-
-1. 在末端执行器上固定一个 AprilTag，形成稳定的 `tool_T_hand_tag`。
-2. 在底座或工作台上固定一个 AprilTag，形成稳定的 `base_T_base_tag`。
-3. 底座相机拍 `hand_tag`，输出 `base_camera_T_hand_tag`。
-4. 末端相机拍 `base_tag`，输出 `wrist_camera_T_base_tag`。
-5. 每次采样同步记录机器人 FK：`base_T_tool`。
-
-如果你的 Delta 机械臂末端没有姿态自由度，只能做 XYZ 平移，那么经典手眼标定里的旋转观测是不充分的。这个 demo 因此默认使用“已知 AprilTag 刚性安装位置 + 多帧平均”的直接外参链，而不是强行依赖末端旋转运动。
-
-## 标定链路
-
-### 1. 底座相机外参
-
-已知：
+底座相机同时提供一条独立核验链：
 
 ```text
-base_T_tool                每个采样点的机器人末端位姿
-tool_T_hand_tag            末端 AprilTag 相对末端工具坐标的安装位姿
-base_camera_T_hand_tag     底座相机检测到的 AprilTag 位姿
-```
-
-每一帧都能得到：
-
-```text
-base_T_base_camera =
-    base_T_tool * tool_T_hand_tag * inverse(base_camera_T_hand_tag)
-```
-
-多帧求平均后得到稳定的 `base_T_base_camera`。
-
-### 2. 末端相机外参
-
-已知：
-
-```text
-base_T_tool                每个采样点的机器人末端位姿
-base_T_base_tag            底座 AprilTag 相对机械臂基座的安装位姿
-wrist_camera_T_base_tag    末端相机检测到的底座 AprilTag 位姿
-```
-
-每一帧都能得到：
-
-```text
-tool_T_wrist_camera =
-    inverse(base_T_tool) * base_T_base_tag * inverse(wrist_camera_T_base_tag)
-```
-
-多帧求平均后得到稳定的 `tool_T_wrist_camera`。
-
-### 3. 抓取时怎么用
-
-末端相机看到物体后，如果视觉输出 `wrist_camera_T_object`，物体在机械臂基座下的位置就是：
-
-```text
-base_T_object =
-    base_T_tool * tool_T_wrist_camera * wrist_camera_T_object
-```
-
-底座相机看到末端 AprilTag 后，也可以反推当前末端：
-
-```text
-base_T_tool =
+base_T_tool_from_camera =
     base_T_base_camera * base_camera_T_hand_tag * inverse(tool_T_hand_tag)
 ```
 
-这两条链可以互相验算：机器人 FK 算出来的 `base_T_tool` 和底座相机反推出来的 `base_T_tool` 如果差很多，说明相机、AprilTag、机械臂零点或时间同步有问题。
+如果 `base_T_tool_from_camera` 和机器人 FK 的 `base_T_tool` 差很多，优先检查
+AprilTag 尺寸、相机内参、装配尺寸、末端零点和时间同步。
 
-## 目录结构
+## 坐标系命名
 
 ```text
-Dual_Camera_HandEye/
-  README.md
-  requirements.txt
-  demo.py
-  src/dual_handeye/
-    __init__.py
-    calibration.py
-    cli.py
-    geometry.py
-    synthetic.py
+base                 机械臂基座坐标系
+tool                 末端执行器/法兰坐标系，机器人 FK 输出 base_T_tool
+base_camera          底座相机坐标系
+object_camera        执行机构侧面物体识别相机坐标系
+hand_tag             末端上表面 AprilTag 坐标系
+object               待抓取物体坐标系或物体检测输出的目标点坐标系
 ```
 
-## 安装依赖
+变换名采用 `A_T_B`：把 `B` 坐标系下的点转换到 `A` 坐标系。
+
+## 依赖
 
 ```powershell
 cd C:\Users\hanjuncheng\Desktop\78arm\Dual_Camera_HandEye
 python -m pip install -r requirements.txt
 ```
 
-`numpy` 是必需的。`opencv-contrib-python` 用于后续接 AprilTag/ArUco 检测，也提供可选的经典 `calibrateHandEye` 路线。
+`numpy` 是数学链路必需依赖。`opencv-contrib-python` 只用于兼容旧版
+`--wrist-method handeye` 数据，不是当前推荐路线。
 
 ## 运行合成数据 demo
 
-先生成一份带噪声的模拟采样数据：
-
 ```powershell
-cd C:\Users\hanjuncheng\Desktop\78arm\Dual_Camera_HandEye
-python demo.py generate --output output\synthetic_samples.json --samples 24
+cd C:\Users\hanjuncheng\Desktop\78arm
+python Dual_Camera_HandEye\demo.py generate --output Dual_Camera_HandEye\output\synthetic_samples.json --samples 24
+python Dual_Camera_HandEye\demo.py calibrate --samples Dual_Camera_HandEye\output\synthetic_samples.json --output Dual_Camera_HandEye\output\calibration_result.json
 ```
 
-再跑标定：
+输出包含：
 
-```powershell
-python demo.py calibrate --samples output\synthetic_samples.json --output output\calibration_result.json
-```
+- `base_T_base_camera`：底座相机相对机械臂基座的外参，由底座相机看末端
+  AprilTag 的多帧样本估计。
+- `tool_T_object_camera`：侧面物体相机相对末端工具坐标的外参，当前推荐从
+  CAD/卡尺/装配测量写入 `known_transforms`。
+- 残差统计：用于判断底座相机链路是否稳定。
 
-输出里会包含：
+## 真实采样数据格式
 
-- `base_T_base_camera`：底座相机相对机械臂基座的外参
-- `tool_T_wrist_camera`：末端相机相对末端工具坐标的外参
-- 每条链的平移/旋转残差
-
-## 真实机器采样格式
-
-真实机器接入时，把采样保存成 JSON，结构如下：
+真实机器采样时，保存 JSON：
 
 ```json
 {
@@ -147,9 +85,9 @@ python demo.py calibrate --samples output\synthetic_samples.json --output output
       "translation": [0.0, 0.0, -0.035],
       "rotation_rpy_deg": [0.0, 0.0, 0.0]
     },
-    "base_T_base_tag": {
-      "translation": [0.12, 0.05, -0.02],
-      "rotation_rpy_deg": [0.0, 0.0, 0.0]
+    "tool_T_object_camera": {
+      "translation": [0.045, -0.012, 0.032],
+      "rotation_rpy_deg": [0.0, -58.0, 3.0]
     }
   },
   "samples": [
@@ -164,35 +102,65 @@ python demo.py calibrate --samples output\synthetic_samples.json --output output
           "translation": [0.1, -0.02, 0.45],
           "rotation_rpy_deg": [10.0, 0.0, 2.0]
         }
-      },
-      "wrist_camera": {
-        "camera_T_base_tag": {
-          "translation": [0.04, 0.03, 0.32],
-          "rotation_rpy_deg": [-5.0, 12.0, 1.0]
-        }
       }
     }
   ]
 }
 ```
 
-### 数据来源
+说明：
 
-- `base_T_tool`：来自机械臂 FK，单位建议统一为米。
-- `camera_T_hand_tag` / `camera_T_base_tag`：来自 AprilTag 位姿估计，必须使用已经标定过内参的相机。
-- `tool_T_hand_tag`：末端 AprilTag 的安装尺寸，建议用 CAD 或卡尺测量。
-- `base_T_base_tag`：底座 AprilTag 的安装尺寸，建议把 tag 贴在一个可测量的基准板上。
+- `base_T_tool` 来自当前机械臂 FK，单位统一为米。
+- `base_camera.camera_T_hand_tag` 来自现有
+  `AprilTag_Vision/myAprilTag/src/apriltag_usb_detector.py` 的 AprilTag 位姿估计。
+- `tool_T_hand_tag` 和 `tool_T_object_camera` 建议从 `999.STL` 对应装配尺寸、
+  CAD 或卡尺测量得到。
+- 侧面相机看物体，不需要在每个标定点看底座 tag。
+
+## 复用现有 AprilTag 输出
+
+现有检测程序会写：
+
+```text
+AprilTag_Vision/myAprilTag/output/apriltag_latest.json
+```
+
+把某个检测结果转换成 `camera_T_target`：
+
+```powershell
+python Dual_Camera_HandEye\demo.py snapshot-transform `
+  --snapshot AprilTag_Vision\myAprilTag\output\apriltag_latest.json `
+  --tag-id 5 `
+  --transform-name base_camera_T_hand_tag `
+  --output Dual_Camera_HandEye\output\snapshot_transform.json
+```
+
+侧面相机识别物体后，结合当前 `base_T_tool` 和标定结果投影到机械臂基座：
+
+```powershell
+python Dual_Camera_HandEye\demo.py project-object `
+  --calibration Dual_Camera_HandEye\output\calibration_result.json `
+  --base-tool-rpy 0.0 0.0 -0.28 0.0 0.0 0.0 `
+  --object-snapshot AprilTag_Vision\myAprilTag\output\apriltag_latest.json `
+  --object-id 5 `
+  --output Dual_Camera_HandEye\output\object_in_base.json
+```
+
+如果已有 `base_T_tool` JSON，也可以用 `--base-tool path\to\base_T_tool.json`。
+
+## 和现有代码的边界
+
+- `AprilTag_Vision/myAprilTag` 负责相机打开、像素格式、AprilTag 检测、JSON 快照。
+- `IMU/wt61c_latest.json` 继续作为姿态参考快照；本 demo 不直接读串口。
+- `Delta_Gcode_Servo/real_machine_test/gamepad_controller.py` 已经读取 IMU 和
+  AprilTag 快照；本 demo 只定义坐标链路和离线核验方法。
+- 本目录不打开舵机串口、不执行运动、不替代现有实机控制入口。
 
 ## 采样建议
 
-- 采 20 到 40 个点，覆盖工作空间：左/右/前/后/高/低都要有。
-- 每个点停稳 0.2 到 0.5 秒后再采样，避免运动模糊和时间不同步。
-- AprilTag 尺寸、相机内参、图像分辨率必须和检测脚本一致。
-- 两个 tag 必须刚性固定，不能用手临时扶。
-- 如果末端没有旋转自由度，不要期待经典手眼算法能自动解出所有旋转量，优先使用本 demo 的直接链路。
-
-## 和现有 AprilTag 工具对接
-
-现有 `AprilTag_Vision/myAprilTag/src/apriltag_usb_detector.py` 已经能做相机标定、AprilTag 检测和 JSON 输出。后续可以写一个采样脚本，把它的检测结果和机器人当前 `base_T_tool` 合并成这里的 `samples.json`。
-
-当前 demo 暂时不直接打开相机、不发机械臂运动命令，目的是先把数学链路和数据接口固定下来。等外参结果稳定后，再把 `base_T_object = base_T_tool * tool_T_wrist_camera * wrist_camera_T_object` 接到抓取规划里。
+- 底座相机外参建议采 20 到 40 个点，覆盖工作空间的左/右/前/后/高/低。
+- 每个点静止 0.2 到 0.5 秒后再采样，避免运动模糊和时间不同步。
+- AprilTag 尺寸、相机内参、分辨率必须和检测脚本一致。
+- 末端上表面 AprilTag、IMU、侧面相机和抓取机构必须刚性固定。
+- Delta 末端姿态自由度不足时，不要依赖经典手眼算法自动求完整旋转外参；
+  当前路线是“底座相机多帧估计 + 侧面相机安装外参”。

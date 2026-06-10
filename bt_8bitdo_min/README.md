@@ -1,5 +1,19 @@
 # bt_8bitdo_min
 
+## Relation to Dual_Camera_HandEye
+
+`Dual_Camera_HandEye/` is an offline coordinate-chain demo for the current base
+camera + side object camera layout. It reuses AprilTag/IMU snapshot files and
+does not replace this gamepad package.
+
+Keep the boundary clear:
+
+- this package owns operator input, serial preflight, kinematics, and real servo
+  commands;
+- `Dual_Camera_HandEye/` owns the math for checking `base_T_tool` from the
+  top-side end-effector AprilTag and projecting side-camera object detections
+  into the arm base frame.
+
 Minimal 8BitDo Bluetooth gamepad package for Ubuntu 18.04 on the onboard Nano.
 
 It reads Linux `/dev/input/event*` directly, so it does not depend on pygame or

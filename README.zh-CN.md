@@ -7,18 +7,11 @@ English README: [README.md](README.md)
 
 ## 项目定位
 
-这个仓库用于整理无人机挂载轻量 Delta 机械臂相关的代码和资料，包括机械臂仿真、舵机控制、总线舵机调试、IMU、AprilTag 视觉识别，以及当前正在使用的 8BitDo 蓝牙手柄实机控制包。
+这个仓库整理无人机挂载轻量 Delta 机械臂相关的代码和资料，包括机械臂仿真、舵机控制、总线舵机调试、IMU、AprilTag 视觉识别、双相机手眼链路，以及当前正在使用的 8BitDo 蓝牙手柄实机控制包。
 
-当前重点是 `bt_8bitdo_min/`。它不是单纯读取手柄状态的演示程序，而是一条可以控制真实舵机的链路：机载 Ubuntu 18.04 Nano 读取蓝牙手柄输入，把操作量转换成机械臂末端 XYZ 运动，再经过 Delta 机械臂逆运动学、舵机映射和串口协议，最终通过幻尔 xArm 1.6 舵机驱动板驱动物理总线舵机。
+当前实机控制重点是 `bt_8bitdo_min/`：机载 Ubuntu 18.04 Nano 读取蓝牙手柄输入，把操作量转换成机械臂末端 XYZ 运动，再经过 Delta 机械臂逆运动学、舵机映射和串口协议，最终通过幻尔 xArm 1.6 舵机驱动板驱动物理总线舵机。
 
-本项目的 Delta 机械臂结构思路和早期建模/控制方向借鉴自 Isaac Chasteau 的 MIT 开源项目
-[isaac879/Delta-Robot](https://github.com/isaac879/Delta-Robot)。本仓库里的建模、硬件布局、控制代码、传感器链路和部署方式已经按当前机械臂做了修改，但仍然保留对上游项目的来源声明和 MIT 版权声明。
-
-## 为什么使用 8BitDo Ultimate 2 Wireless
-
-一开始尝试过 Xbox Series 无线手柄，但在这块 Nano 板子的 Ubuntu 18.04 蓝牙环境里没有稳定解决兼容问题。实际表现是手柄会在连接和断开之间反复跳变，无法作为实机控制输入使用。
-
-因此当前改用 8BitDo Ultimate 2 Wireless 手柄。这个方案不依赖 pygame 或 SDL 的手柄映射，而是直接读取 Linux 的 `/dev/input/eventX` 事件设备，并通过配置文件维护按键和轴映射。这样更适合 Ubuntu 18.04 Nano 这种旧系统和嵌入式部署环境。
+本项目的 Delta 机械臂结构思路和早期建模/控制方向借鉴自 Isaac Chasteau 的 MIT 开源项目 [isaac879/Delta-Robot](https://github.com/isaac879/Delta-Robot)。本仓库里的建模、硬件布局、控制代码、传感器链路和部署方式已经按当前机械臂做了修改，但仍保留对上游项目的来源声明和 MIT 版权声明。
 
 ## 机械臂实物与模型照片
 
@@ -27,16 +20,32 @@ English README: [README.md](README.md)
 | <img src="images/1.jpg" alt="Delta 机械臂实机框架与电子部分" width="420"><br>实机框架、连杆、控制板和机载走线。 | <img src="images/884b798faf516a24bb9bb0af58b4d616.jpg" alt="Delta 机械臂手持检查连杆机构" width="420"><br>轻量 Delta 机械臂装配后进行手持检查。 |
 | <img src="images/9b5124927711c6a065732a5374151702.jpg" alt="Delta 机械臂连杆与改版打印件" width="420"><br>连杆/末端侧，展示已安装的改版打印件。 | <img src="images/0cb198a8a6041f6031b36bc2a0e89fff.jpg" alt="改版连杆座 CAD 概念" width="420"><br>改版连杆座/安装件 CAD 设计。 |
 | <img src="images/ed630aaf206b2373b458c409e840b7ce.jpg" alt="改版末端平台 CAD" width="420"><br>改版末端平台与轴承/连杆安装几何。 | <img src="images/bc97d03f7ef3bbd601feaae3bde8008b.jpg" alt="可打印或 CNC 的改版板件" width="420"><br>平面板件模型，可 3D 打印，也可导出后做 CNC。 |
-| <img src="images/6e8c580ad37580d7e83ef4b96af3ac27.jpg" alt="改版单个支架 CAD" width="420"><br>改版单个支架模型。 | <img src="images/6ffa0ed538995f449159233e0b68eb6e.jpg" alt="改版零件 3D 打印切片布局" width="420"><br>改版板件、连杆和支架的 3D 打印切片布局。 |
 
 ## 机械建模和制造文件
 
-改版机械文件放在 `part_model_rev/`。该目录包含 SolidWorks 零件文件（`.SLDPRT`）和 `.3mf` 打印布局，用于继续迭代真实机械臂：
+改版机械文件放在 `part_model_rev/`。该目录包含 SolidWorks 零件文件（`.SLDPRT`）、`.3mf` 打印布局，以及当前用于固定 IMU 和末端上表面 AprilTag 的 `999.STL`。
 
 - `.3mf` 可以作为 3D 打印的起点。
+- `999.STL` 用于当前 IMU + 末端上表面 AprilTag 固定件，是双相机手眼链路里的机械基准。
 - `.SLDPRT` 用于继续改尺寸、改孔位、改装配关系。
 - 需要打印时导出 STL/3MF；需要 CNC 时可以从 CAD 导出 STEP/DXF，再生成 CAM 加工路径。
 - 打印或加工前要按真实硬件复核孔径、轴承配合、舵机避让、碳管连杆尺寸和装配间隙。
+
+## 双相机手眼布局
+
+`Dual_Camera_HandEye/` 记录当前手眼协同方案：
+
+- 底座相机固定在底座/机架上，观察末端执行器上表面的 AprilTag，用来估计或核验 `base_T_tool`。
+- 末端执行器下表面连接抓取机构。
+- 执行机构侧面的相机观察待抓取物体。这个相机的固定安装外参写成 `tool_T_object_camera`，优先从 CAD/装配测量得到，不再假设它要观察底座 AprilTag。
+
+这个 demo 复用现有输出：
+
+- `AprilTag_Vision/myAprilTag/output/apriltag_latest.json`
+- `IMU/wt61c_latest.json`
+- `Delta_Gcode_Servo/real_machine_test/gamepad_controller.py` 里的传感器快照读取路径
+
+它只做坐标链路和离线核验，不打开舵机串口，也不发送运动命令。
 
 ## 实际硬件控制链路
 
@@ -52,20 +61,21 @@ English README: [README.md](README.md)
   -> 实物 LX 总线舵机
 ```
 
-需要注意：程序最终会通过幻尔 xArm 1.6 舵机驱动板向舵机发送实际运动命令。也就是说，`run_control_bt.sh` 不是只读测试脚本，它可以让机械臂真实运动。运行前必须确认机械臂处在安全参考位，周围没有障碍物，舵机供电和串口连接正常。
+`run_control_bt.sh` 会通过舵机驱动板发送真实运动命令。运行前必须确认机械臂处在安全参考位，周围没有障碍物，舵机供电和串口连接正常。
 
 ## 目录说明
 
 - `bt_8bitdo_min/`：当前最小 8BitDo 蓝牙手柄控制包，包含只读测试、映射检查、串口预检和实机控制入口。
 - `Delta_Gcode_Servo/`：Delta 机械臂 G-code、逆运动学和总线舵机控制工具。
 - `Delta-Robot/`：原始 Delta 机械臂仿真和模型资源。
-- `part_model_rev/`：改版 SolidWorks/3MF 机械文件，可用于 3D 打印或导出后 CNC 加工。
+- `part_model_rev/`：改版 SolidWorks/3MF/STL 机械文件；`999.STL` 是当前 IMU + AprilTag 固定件。
+- `Dual_Camera_HandEye/`：底座相机 + 侧面物体相机的手眼坐标链路 demo，复用现有 AprilTag/IMU 快照。
 - `lx225_tool_demo/`：LX-225 总线舵机工具和 demo 配置。
 - `IMU/`：WT61C IMU 读取、可视化和 JSON 快照输出工具。
 - `AprilTag_Vision/`：AprilTag 视觉识别、相机标定和定位输出工具。
 - `Bus_Servo/`：总线舵机示例和二维云台相关工具。
 
-## 推荐运行流程
+## 只读测试流程
 
 进入当前手柄控制包：
 
@@ -81,42 +91,17 @@ bash deploy/install_ubuntu18.sh
 
 第一次安装后建议退出登录再重新登录，使 `input` 组权限生效。
 
-如果脚本提示没有配置手柄 MAC 地址，需要先手动配对一次：
-
-```bash
-bluetoothctl
-power on
-agent on
-default-agent
-scan on
-pair AA:BB:CC:DD:EE:FF
-trust AA:BB:CC:DD:EE:FF
-connect AA:BB:CC:DD:EE:FF
-quit
-```
-
-然后把实际 MAC 写入 `config/bluetooth_mac.conf`。
-
-## 只读测试流程
-
-先做一次手柄日志采集：
+采集一次手柄日志：
 
 ```bash
 bash deploy/run_log_test.sh 30
 ```
-
-30 秒内按一遍方向键、右摇杆 Y 轴、`A/B/X/Y/LB/RB`。采集结果会覆盖写入：
-
-- `logs/gamepad_once.log`
-- `logs/gamepad_once.json`
 
 检查采集结果是否覆盖实机控制需要的输入：
 
 ```bash
 bash deploy/run_mapping_check.sh
 ```
-
-如果有项目显示 `MISSING`，重新采集并补按对应按键或摇杆。
 
 也可以打开只读实时状态显示：
 
@@ -128,7 +113,7 @@ bash deploy/run_show_state.sh
 
 ## 串口和舵机预检
 
-在实机控制前，先读取舵机驱动板和舵机反馈：
+实机控制前先读取舵机驱动板和舵机反馈：
 
 ```bash
 bash deploy/run_serial_check.sh --port /dev/ttyUSB0
@@ -142,7 +127,7 @@ bash deploy/run_serial_check.sh --port /dev/ttyUSB0
 bash deploy/run_serial_move_check.sh --port /dev/ttyUSB0
 ```
 
-它会读取当前舵机位置，小幅移动，然后返回起点。这个步骤已经属于写命令测试，运行前要确认机械臂处在安全空间内。
+这一步已经属于写命令测试，运行前要确认机械臂处在安全空间内。
 
 ## 实机控制
 
@@ -162,7 +147,7 @@ bash deploy/run_control_bt.sh --port /dev/ttyUSB0
 - `Y`：切换传感器坐标系模式
 - `LB/RB`：末端工具舵机闭合/打开
 
-程序会自动寻找当前的 `/dev/input/eventX`，不要把设备号固定写死成 `event8`。如果只是日常使用，保持 `config/gamepad_8bitdo_bt.json` 里的 `device.device_path` 为空即可。
+程序会自动寻找当前的 `/dev/input/eventX`，不要把设备号固定写死成 `event8`。日常使用时，保持 `config/gamepad_8bitdo_bt.json` 里的 `device.device_path` 为空即可。
 
 ## 安全注意事项
 
@@ -174,7 +159,7 @@ bash deploy/run_control_bt.sh --port /dev/ttyUSB0
 
 ## Git 同步注意
 
-仓库中存在厂家资料包、视频、安装包、运行日志和缓存文件，这些不适合直接提交到 GitHub。根目录 `.gitignore` 已经忽略 `LX-225 串行总线舵机/`、运行日志、缓存、压缩包、安装包和视频文件。提交前建议先运行：
+仓库中存在厂家资料包、视频、安装包、运行日志和缓存文件，这些不适合直接提交到 GitHub。提交前建议先运行：
 
 ```bash
 git status --short --ignored
@@ -182,11 +167,3 @@ git add -n .
 ```
 
 确认不会把大文件或本地运行产物加入暂存区后，再正式提交。
-
-## 开源协议和上游声明
-
-本仓库整体以 GNU GPL v3.0 开源，见 [LICENSE](LICENSE)。
-
-Delta 机械臂结构思路和原始参考项目来自
-[isaac879/Delta-Robot](https://github.com/isaac879/Delta-Robot)。该上游项目由 Isaac Chasteau 以 MIT License 发布。MIT 版权声明已保留在
-[THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。本仓库中的模型和代码已经针对当前硬件、控制栈、传感器和制造流程做了修改。

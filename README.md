@@ -45,10 +45,13 @@ Linux input event device directly, without relying on pygame or SDL mappings.
 ## Mechanical Model Files
 
 Revised mechanical files are stored in `part_model_rev/`. The folder contains
-SolidWorks part files (`.SLDPRT`) and a `.3mf` print layout. These files are
-intended for iteration on the physical arm:
+SolidWorks part files (`.SLDPRT`), a `.3mf` print layout, and the current
+`999.STL` mount for fixing the IMU and the end-effector AprilTag. These files
+are intended for iteration on the physical arm:
 
 - Use the `.3mf` file as a direct 3D-print starting point.
+- Use `999.STL` for the current IMU + top-side AprilTag fixture that supports
+  the dual-camera hand-eye workflow.
 - Use the `.SLDPRT` files for CAD edits and dimensional changes.
 - Export STL/3MF for printing, or export STEP/DXF and generate CAM toolpaths
   for CNC machining where the part geometry is appropriate.
@@ -74,6 +77,26 @@ read-only test entrypoints separate from the real-machine entrypoint. Always run
 the mapping and serial preflight checks before opening the writable control
 loop.
 
+## Dual-Camera Hand-Eye Layout
+
+`Dual_Camera_HandEye/` documents the current vision geometry:
+
+- The base camera looks at the AprilTag on the top side of the end effector and
+  estimates/checks `base_T_tool`.
+- The underside of the end effector carries the grasping mechanism.
+- The side camera on the actuator looks at the object to be grasped. Its fixed
+  mount is modeled as `tool_T_object_camera`, measured from CAD/assembly rather
+  than solved by making it look at a base tag.
+
+The demo reuses existing outputs:
+
+- `AprilTag_Vision/myAprilTag/output/apriltag_latest.json`
+- `IMU/wt61c_latest.json`
+- `Delta_Gcode_Servo/real_machine_test/gamepad_controller.py` sensor snapshot
+  reading path
+
+It does not open the servo serial port or command motion.
+
 ## Main Folders
 
 - `bt_8bitdo_min/`: minimal 8BitDo Bluetooth gamepad package. It has separate
@@ -81,7 +104,10 @@ loop.
 - `Delta_Gcode_Servo/`: fuller delta robot G-code and servo control code.
 - `Delta-Robot/`: original delta robot simulation and model resources.
 - `part_model_rev/`: revised SolidWorks/3MF mechanical files for printing or
-  CNC-oriented manufacturing export.
+  CNC-oriented manufacturing export, including `999.STL` for the IMU +
+  AprilTag fixture.
+- `Dual_Camera_HandEye/`: base-camera plus side-object-camera hand-eye
+  coordinate-chain demo that reuses existing AprilTag/IMU snapshots.
 - `lx225_tool_demo/`: LX-225 bus-servo tool/demo configuration.
 - `IMU/`: WT61C IMU tools and latest snapshot output.
 - `AprilTag_Vision/`: AprilTag camera detection tools.

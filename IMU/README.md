@@ -1,5 +1,16 @@
 # IMU 使用说明
 
+## 78arm 双相机手眼对接
+
+当前 IMU 由 `part_model_rev/999.STL` 固定在末端相关机械件上，和末端上表面
+AprilTag 一起作为执行器侧的姿态/装配参考。`wt61c_live_viewer.py` 继续只负责
+WT61C 串口读取和 `wt61c_latest.json` 快照输出。
+
+`Dual_Camera_HandEye/` 不直接读 IMU 串口；它复用 `wt61c_latest.json` 和
+`AprilTag_Vision/myAprilTag/output/apriltag_latest.json` 这类已有快照来做离线
+坐标链路核验。实机控制侧仍由 `Delta_Gcode_Servo/real_machine_test/gamepad_controller.py`
+读取这些快照。
+
 ## 文件说明
 
 - `wt61c_live_viewer.py`

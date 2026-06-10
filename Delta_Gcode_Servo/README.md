@@ -1,5 +1,18 @@
 # Delta G-code Servo
 
+## 78arm 双相机手眼对接
+
+实机传感器快照读取逻辑在 `real_machine_test/gamepad_controller.py` 中维护。
+`Dual_Camera_HandEye/` 复用这些现有输出做坐标链路核验，不新建控制包，也不替代
+本目录的实机控制入口。
+
+当前双相机关系：
+
+- 底座相机观察末端执行器上表面的 AprilTag，用来核验 `base_T_tool`。
+- 执行机构侧面相机观察待抓取物体，物体位置通过
+  `base_T_tool * tool_T_object_camera * object_camera_T_object` 投影到机械臂基座。
+- `tool_T_object_camera` 来自 `part_model_rev/999.STL` 对应装配的 CAD/实测尺寸。
+
 把 Delta Robot 的 `G-code` 轨迹转换成 `LX-225` 总线舵机命令，并支持：
 
 - 导出舵机 JSON

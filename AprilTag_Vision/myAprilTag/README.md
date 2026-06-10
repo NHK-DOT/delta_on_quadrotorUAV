@@ -1,5 +1,21 @@
 # AprilTag Camera Vision
 
+## 78arm 双相机手眼对接
+
+当前 78arm 的手眼 demo 位于 `../../Dual_Camera_HandEye/`。本目录继续只负责
+USB 相机打开、像素格式协商、AprilTag 检测和 JSON 快照输出，不承担机械臂控制。
+
+- 底座相机运行本检测器后，`output/apriltag_latest.json` 可作为
+  `base_camera_T_hand_tag` 的来源：它观察末端执行器上表面的 AprilTag。
+- 执行机构侧面相机运行本检测器或同格式物体识别输出后，快照可作为
+  `object_camera_T_object` 的来源：它观察待抓取物体。
+- `Dual_Camera_HandEye/demo.py snapshot-transform` 可以把本目录的
+  `output/apriltag_latest.json` 转换成坐标变换 JSON。
+- `Dual_Camera_HandEye/demo.py project-object` 可以结合当前 `base_T_tool` 和
+  `tool_T_object_camera`，输出物体在机械臂基座坐标系下的位置。
+
+本目录不打开舵机串口，也不发送运动命令。
+
 一个面向 USB 摄像头和机载摄像头的独立 AprilTag 检测项目。
 
 这个项目的目标很明确：

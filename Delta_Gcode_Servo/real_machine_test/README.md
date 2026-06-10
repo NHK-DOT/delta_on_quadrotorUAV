@@ -4,6 +4,25 @@ This folder is the current mainline for the real Delta arm hand-controller test.
 
 Use `gamepad_controller.py` for Xbox control. The older minimal 8BitDo test package is not the control mainline.
 
+## Dual-camera hand-eye boundary
+
+The dual-camera hand-eye demo lives in `../../Dual_Camera_HandEye/` and does not
+replace this real-machine controller.
+
+Current division of work:
+
+- `gamepad_controller.py` remains the real servo-control entrypoint and can move
+  hardware after the startup confirmations.
+- This controller already reads `../../IMU/wt61c_latest.json` and
+  `../../AprilTag_Vision/myAprilTag/output/apriltag_latest.json` as sensor
+  snapshots.
+- `Dual_Camera_HandEye/` uses the same snapshot files offline to check the
+  coordinate chain: base camera -> top-side end-effector AprilTag, and side
+  object camera -> grasp target.
+- The side object camera mount is treated as a fixed transform
+  `tool_T_object_camera`, measured from CAD/assembly around the `999.STL`
+  fixture, not solved by forcing the side camera to see a base tag.
+
 ## Safety model
 
 `gamepad_controller.py` now treats the driver feedback as the real state source before control starts.

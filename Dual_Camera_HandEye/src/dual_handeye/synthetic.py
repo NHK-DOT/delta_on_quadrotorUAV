@@ -24,13 +24,13 @@ def build_synthetic_dataset(
         translation=[0.0, 0.0, -0.035],
         rpy_deg=[0.0, 0.0, 0.0],
     )
-    base_T_base_tag = Transform.from_rpy_deg(
-        translation=[0.15, 0.08, -0.04],
-        rpy_deg=[0.0, 0.0, 8.0],
-    )
-    tool_T_wrist_camera = Transform.from_rpy_deg(
+    tool_T_object_camera = Transform.from_rpy_deg(
         translation=[0.045, -0.012, 0.032],
         rpy_deg=[0.0, -58.0, 3.0],
+    )
+    base_T_object = Transform.from_rpy_deg(
+        translation=[0.06, -0.04, -0.315],
+        rpy_deg=[0.0, 0.0, 22.0],
     )
 
     samples = []
@@ -39,15 +39,15 @@ def build_synthetic_dataset(
         base_camera_T_hand_tag = (
             base_T_base_camera.inverse() @ base_T_tool @ tool_T_hand_tag
         )
-        wrist_camera_T_base_tag = (
-            (base_T_tool @ tool_T_wrist_camera).inverse() @ base_T_base_tag
+        object_camera_T_object = (
+            (base_T_tool @ tool_T_object_camera).inverse() @ base_T_object
         )
 
         base_camera_T_hand_tag = add_noise(
             base_camera_T_hand_tag, translation_noise_m, rotation_noise_deg, rng
         )
-        wrist_camera_T_base_tag = add_noise(
-            wrist_camera_T_base_tag, translation_noise_m, rotation_noise_deg, rng
+        object_camera_T_object = add_noise(
+            object_camera_T_object, translation_noise_m, rotation_noise_deg, rng
         )
 
         samples.append(
@@ -57,8 +57,8 @@ def build_synthetic_dataset(
                 "base_camera": {
                     "camera_T_hand_tag": base_camera_T_hand_tag.to_json(),
                 },
-                "wrist_camera": {
-                    "camera_T_base_tag": wrist_camera_T_base_tag.to_json(),
+                "object_camera": {
+                    "camera_T_object": object_camera_T_object.to_json(),
                 },
             }
         )
@@ -68,11 +68,12 @@ def build_synthetic_dataset(
         "description": "Synthetic dual-camera hand-eye dataset for 78arm.",
         "ground_truth": {
             "base_T_base_camera": base_T_base_camera.to_json(),
-            "tool_T_wrist_camera": tool_T_wrist_camera.to_json(),
+            "tool_T_object_camera": tool_T_object_camera.to_json(),
+            "base_T_object": base_T_object.to_json(),
         },
         "known_transforms": {
             "tool_T_hand_tag": tool_T_hand_tag.to_json(),
-            "base_T_base_tag": base_T_base_tag.to_json(),
+            "tool_T_object_camera": tool_T_object_camera.to_json(),
         },
         "samples": samples,
     }
