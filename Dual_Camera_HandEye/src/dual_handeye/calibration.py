@@ -224,6 +224,10 @@ def calibrate_dataset(dataset: HandEyeDataset, wrist_method: str = "direct") -> 
     result: dict[str, Any] = {
         "units": dataset.units,
         "sample_count": len(dataset.samples),
+        "known_transforms": {
+            name: transform.to_json()
+            for name, transform in dataset.known_transforms.items()
+        },
         "results": {},
         "warnings": [],
     }

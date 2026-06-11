@@ -1,166 +1,174 @@
-# Dual Camera Hand-Eye Demo
+# Dual Camera Hand-Eye / Visual Follow Demo
 
-这个目录给当前 78arm 的双相机手眼协同方案提供一个可验证 demo。它只复用现有
-`AprilTag_Vision/myAprilTag`、`IMU` 和实机控制代码的输出文件，不另写相机检测包，
-也不发送机械臂运动命令。
+这个目录现在只做一件事：把 78arm 已有的相机、IMU、FK/IK 和实机控制入口之间的
+坐标关系讲清楚，并提供离线可跑的小 demo。它不打开舵机串口，不直接控制实机。
 
-## 当前硬件布局
+## 明确答复
 
-- **底座相机 `base_camera`**：固定在底座/机架上，观察末端执行器上表面的
-  AprilTag。它用于反推末端当前位置，并核验机器人 FK 的 `base_T_tool`。
-- **末端上表面 AprilTag `hand_tag`**：固定在新机械件上，和末端工具坐标系形成
-  刚性关系 `tool_T_hand_tag`。
-- **末端下表面抓取机构**：和末端工具坐标系同体安装，后续抓取点最终要落回
-  `base` 坐标系。
-- **侧面物体相机 `object_camera`**：安装在执行机构侧面，观察待抓取物体。它不再
-  假设必须看底座/工作台 AprilTag；它的安装外参来自 CAD/卡尺/装配测量：
-  `tool_T_object_camera`。
-- **`part_model_rev/999.STL`**：新加入的 IMU + AprilTag 固定件模型，用来约束
-  `tool_T_hand_tag`、IMU 和末端工具之间的机械关系。
+你现在要做的不是传统工业机器人那种“拿探针、千分表、笔尖去触碰一个固定锚点”的
+手眼标定。你的 12V 平面电磁铁不会提供一个稳定尖点，所以不适合作为传统 TCP
+接触锚定工具。
 
-核心目标是把所有视觉结果统一到机械臂基座坐标系 `base`：
+你这套系统更接近“大疆云台/火控雷达的目标跟随”：
+
+1. 相机识别到目标。
+2. 目标在画面里偏离期望位置。
+3. 控制器把画面误差转换成末端小步位移。
+4. 末端跟着目标移动，让目标回到画面中心或预设抓取区域。
+5. 目标进入容差后，再执行下降/吸附/抬升。
+
+所以这里推荐先做 **image-follow 图像跟随闭环**，再做完整三维抓取外参。
+
+## 当前硬件策略
+
+- 底座相机 `base_camera`：看末端执行器上表面的 AprilTag，用来估计/核验实际
+  `base_T_tool`。
+- 末端上表面：AprilTag + IMU，二者和末端工具坐标系刚性固定。
+- 末端下表面：12V 平面电磁铁，是最终吸附执行器。
+- 侧面相机 `object_camera`：安装在执行机构旁边，斜向下看电磁铁下方附近区域。
+  它可以照不到电磁铁本体；只要它能稳定看到待抓取物体，就可以先做图像跟随。
+
+这个相机位置后续还可以改。当前建议是：
+
+- 先保证目标能在工作高度附近长期出现在画面里；
+- 把期望位置设成画面中心或略偏向电磁铁投影落点的位置；
+- 先锁 Z，只做 XY 小步跟随；
+- 等 XY 跟随稳定后，再加入下降、吸附、抬升。
+
+## 你现在已经有的条件
+
+- `Delta_Gcode_Servo/real_machine_test/gamepad_controller.py`
+  - 已有 FK/IK。
+  - 已有手柄实时控制。
+  - 已有 `B` 记录点，`BACK` 切换 `LINE` / `PICK_PLACE`，`START` 二次确认自动运动。
+  - 已经读取 `IMU/wt61c_latest.json` 和
+    `AprilTag_Vision/myAprilTag/output/apriltag_latest.json`。
+- `AprilTag_Vision/myAprilTag`
+  - 已有相机打开、AprilTag 检测、位姿估计、JSON 快照输出。
+- `IMU`
+  - 已有 WT61C 快照输出。
+- `part_model_rev/999.STL`
+  - 已经作为 IMU + 上表面 AprilTag 固定件纳入仓库。
+- `Dual_Camera_HandEye`
+  - 已有底座相机外参估计。
+  - 已有侧面相机固定外参 `tool_T_object_camera` 的数据接口。
+  - 已有把物体检测投到 `base` 坐标系的离线命令。
+
+还没完成的是：**把视觉误差自动写进实机控制循环**。目前这个目录只输出下一步目标，
+没有直接驱动舵机。
+
+## 两条跟随路线
+
+### 1. image-follow：先做画面跟随
+
+这是当前最适合你的路线。它不要求侧面相机看到电磁铁，也不要求你马上完成完整
+三维手眼标定。
+
+输入：
+
+- 当前 `base_T_tool`
+- 侧面相机安装外参 `tool_T_object_camera`
+- 目标在画面中的 `normalized_xy` 或 `center_px`
+
+输出：
+
+- 图像误差
+- 建议的末端小步位移
+- 下一步 `next_base_T_tool`
+- 可选 Delta IK 可达性检查
+
+命令：
+
+```powershell
+cd C:\Users\hanjuncheng\Desktop\78arm
+python Dual_Camera_HandEye\demo.py plan-image-follow-step `
+  --calibration Dual_Camera_HandEye\output\calibration_result.json `
+  --base-tool-rpy 0.0 0.0 -0.28 0.0 0.0 0.0 `
+  --object-snapshot AprilTag_Vision\myAprilTag\output\apriltag_latest.json `
+  --object-id 5 `
+  --gain-mm-per-norm 15 `
+  --max-step-mm 3 `
+  --tolerance-norm 0.04 `
+  --output Dual_Camera_HandEye\output\image_follow_step.json
+```
+
+注意：这里的 `base-tool-rpy` 示例仍是 hand-eye demo 的视觉坐标，不等于实机控制器
+的最终模型坐标。接入实机前要统一 `base` 坐标和 `Delta_Gcode_Servo` 的 XYZ 符号。
+
+### 2. metric-follow：后续做精准抓取
+
+这条路线用完整外参计算：
 
 ```text
 base_T_object = base_T_tool * tool_T_object_camera * object_camera_T_object
 ```
 
-底座相机同时提供一条独立核验链：
+再让电磁铁中心 `tool_T_pickup` 对齐目标：
+
+```powershell
+python Dual_Camera_HandEye\demo.py plan-follow-step `
+  --calibration Dual_Camera_HandEye\output\calibration_result.json `
+  --base-tool-rpy 0.0 0.0 -0.28 0.0 0.0 0.0 `
+  --object-snapshot AprilTag_Vision\myAprilTag\output\apriltag_latest.json `
+  --object-id 5 `
+  --pickup-offset-mm 0 0 -35 `
+  --track-axes xy `
+  --max-step-mm 5 `
+  --output Dual_Camera_HandEye\output\follow_step.json
+```
+
+这条路线更适合真正“抓取点对齐”，但前提是侧面相机的物体检测能给出稳定的
+尺度/深度/位姿，或者你能用固定高度假设把像素坐标落到桌面平面。
+
+## 底座相机核验末端位置
+
+底座相机看到上表面 AprilTag 后，可以反推当前末端：
 
 ```text
 base_T_tool_from_camera =
     base_T_base_camera * base_camera_T_hand_tag * inverse(tool_T_hand_tag)
 ```
 
-如果 `base_T_tool_from_camera` 和机器人 FK 的 `base_T_tool` 差很多，优先检查
-AprilTag 尺寸、相机内参、装配尺寸、末端零点和时间同步。
-
-## 坐标系命名
-
-```text
-base                 机械臂基座坐标系
-tool                 末端执行器/法兰坐标系，机器人 FK 输出 base_T_tool
-base_camera          底座相机坐标系
-object_camera        执行机构侧面物体识别相机坐标系
-hand_tag             末端上表面 AprilTag 坐标系
-object               待抓取物体坐标系或物体检测输出的目标点坐标系
-```
-
-变换名采用 `A_T_B`：把 `B` 坐标系下的点转换到 `A` 坐标系。
-
-## 依赖
+命令：
 
 ```powershell
-cd C:\Users\hanjuncheng\Desktop\78arm\Dual_Camera_HandEye
-python -m pip install -r requirements.txt
-```
-
-`numpy` 是数学链路必需依赖。`opencv-contrib-python` 只用于兼容旧版
-`--wrist-method handeye` 数据，不是当前推荐路线。
-
-## 运行合成数据 demo
-
-```powershell
-cd C:\Users\hanjuncheng\Desktop\78arm
-python Dual_Camera_HandEye\demo.py generate --output Dual_Camera_HandEye\output\synthetic_samples.json --samples 24
-python Dual_Camera_HandEye\demo.py calibrate --samples Dual_Camera_HandEye\output\synthetic_samples.json --output Dual_Camera_HandEye\output\calibration_result.json
-```
-
-输出包含：
-
-- `base_T_base_camera`：底座相机相对机械臂基座的外参，由底座相机看末端
-  AprilTag 的多帧样本估计。
-- `tool_T_object_camera`：侧面物体相机相对末端工具坐标的外参，当前推荐从
-  CAD/卡尺/装配测量写入 `known_transforms`。
-- 残差统计：用于判断底座相机链路是否稳定。
-
-## 真实采样数据格式
-
-真实机器采样时，保存 JSON：
-
-```json
-{
-  "units": "m",
-  "known_transforms": {
-    "tool_T_hand_tag": {
-      "translation": [0.0, 0.0, -0.035],
-      "rotation_rpy_deg": [0.0, 0.0, 0.0]
-    },
-    "tool_T_object_camera": {
-      "translation": [0.045, -0.012, 0.032],
-      "rotation_rpy_deg": [0.0, -58.0, 3.0]
-    }
-  },
-  "samples": [
-    {
-      "name": "p001",
-      "base_T_tool": {
-        "translation": [0.0, 0.0, -0.28],
-        "rotation_rpy_deg": [0.0, 0.0, 0.0]
-      },
-      "base_camera": {
-        "camera_T_hand_tag": {
-          "translation": [0.1, -0.02, 0.45],
-          "rotation_rpy_deg": [10.0, 0.0, 2.0]
-        }
-      }
-    }
-  ]
-}
-```
-
-说明：
-
-- `base_T_tool` 来自当前机械臂 FK，单位统一为米。
-- `base_camera.camera_T_hand_tag` 来自现有
-  `AprilTag_Vision/myAprilTag/src/apriltag_usb_detector.py` 的 AprilTag 位姿估计。
-- `tool_T_hand_tag` 和 `tool_T_object_camera` 建议从 `999.STL` 对应装配尺寸、
-  CAD 或卡尺测量得到。
-- 侧面相机看物体，不需要在每个标定点看底座 tag。
-
-## 复用现有 AprilTag 输出
-
-现有检测程序会写：
-
-```text
-AprilTag_Vision/myAprilTag/output/apriltag_latest.json
-```
-
-把某个检测结果转换成 `camera_T_target`：
-
-```powershell
-python Dual_Camera_HandEye\demo.py snapshot-transform `
-  --snapshot AprilTag_Vision\myAprilTag\output\apriltag_latest.json `
-  --tag-id 5 `
-  --transform-name base_camera_T_hand_tag `
-  --output Dual_Camera_HandEye\output\snapshot_transform.json
-```
-
-侧面相机识别物体后，结合当前 `base_T_tool` 和标定结果投影到机械臂基座：
-
-```powershell
-python Dual_Camera_HandEye\demo.py project-object `
+python Dual_Camera_HandEye\demo.py estimate-tool `
   --calibration Dual_Camera_HandEye\output\calibration_result.json `
-  --base-tool-rpy 0.0 0.0 -0.28 0.0 0.0 0.0 `
-  --object-snapshot AprilTag_Vision\myAprilTag\output\apriltag_latest.json `
-  --object-id 5 `
-  --output Dual_Camera_HandEye\output\object_in_base.json
+  --base-camera-snapshot AprilTag_Vision\myAprilTag\output\apriltag_latest.json `
+  --hand-tag-id 5 `
+  --output Dual_Camera_HandEye\output\base_tool_from_camera.json
 ```
 
-如果已有 `base_T_tool` JSON，也可以用 `--base-tool path\to\base_T_tool.json`。
+真实使用时，底座相机和侧面相机建议写到不同快照文件，避免两个相机抢同一个
+`apriltag_latest.json`。
 
-## 和现有代码的边界
+## 下一步怎么干
 
-- `AprilTag_Vision/myAprilTag` 负责相机打开、像素格式、AprilTag 检测、JSON 快照。
-- `IMU/wt61c_latest.json` 继续作为姿态参考快照；本 demo 不直接读串口。
-- `Delta_Gcode_Servo/real_machine_test/gamepad_controller.py` 已经读取 IMU 和
-  AprilTag 快照；本 demo 只定义坐标链路和离线核验方法。
-- 本目录不打开舵机串口、不执行运动、不替代现有实机控制入口。
+1. 先固定侧面相机，让目标在电磁铁工作高度附近能稳定进入画面。
+2. 用你现有识别逻辑输出和 `apriltag_latest.json` 类似的快照，至少包含：
+   - `timestamp_unix`
+   - `detections[0].center_px` 或 `detections[0].normalized_xy`
+   - 可选 `detections[0].position_m`
+3. 跑 `plan-image-follow-step`，看 `command_step_base_mm` 方向是否符合直觉。
+4. 只在桌面/固定底座上做 XY 小步闭环，不下降、不吸电磁铁。
+5. 确认“目标往右，末端也往正确方向追”后，再把这段输出接进
+   `gamepad_controller.py` 的受限自动模式。
+6. 最后加状态机：
 
-## 采样建议
+```text
+巡航/UWB 到大致区域
+  -> 识别目标
+  -> 盘旋窗口内 image-follow 对中
+  -> 低速下降
+  -> 电磁铁上电吸附
+  -> 抬升
+  -> 飞走
+```
 
-- 底座相机外参建议采 20 到 40 个点，覆盖工作空间的左/右/前/后/高/低。
-- 每个点静止 0.2 到 0.5 秒后再采样，避免运动模糊和时间不同步。
-- AprilTag 尺寸、相机内参、分辨率必须和检测脚本一致。
-- 末端上表面 AprilTag、IMU、侧面相机和抓取机构必须刚性固定。
-- Delta 末端姿态自由度不足时，不要依赖经典手眼算法自动求完整旋转外参；
-  当前路线是“底座相机多帧估计 + 侧面相机安装外参”。
+## 必须补齐的缺口
+
+- 视觉 `base` 坐标和 `Delta_Gcode_Servo` 实机 XYZ 的单位/符号映射。
+- 侧面相机和电磁铁中心的相对偏移 `tool_T_pickup`。
+- 目标检测快照格式。你说第二个相机识别逻辑在别处，后面换新机子时再适配；这里
+  只要求它最终输出同样的 `center_px` / `normalized_xy`。
+- 电磁铁控制的电源/继电器/MOS 管接口目前不在这个 demo 里。

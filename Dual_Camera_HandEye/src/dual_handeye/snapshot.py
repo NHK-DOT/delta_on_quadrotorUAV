@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any
 
+import numpy as np
+
 from .geometry import Transform
 
 
@@ -55,3 +57,30 @@ def detection_transform_from_snapshot(path: Path, tag_id: int | None = None) -> 
     payload = read_json(path)
     detection = select_detection(payload, tag_id=tag_id)
     return detection_to_transform(detection), detection
+
+
+def image_error_from_snapshot(
+    path: Path,
+    tag_id: int | None = None,
+    target_xy: tuple[float, float] = (0.0, 0.0),
+) -> tuple[np.ndarray, dict[str, Any], dict[str, Any]]:
+    payload = read_json(path)
+    detection = select_detection(payload, tag_id=tag_id)
+    normalized_xy = detection.get("normalized_xy")
+    if isinstance(normalized_xy, dict):
+        x_norm = float(normalized_xy.get("x", 0.0))
+        y_norm = float(normalized_xy.get("y", 0.0))
+    else:
+        center = detection.get("center_px")
+        frame = payload.get("processing_frame") or payload.get("camera")
+        if not isinstance(center, dict) or not isinstance(frame, dict):
+            raise ValueError("detection needs normalized_xy or center_px plus frame width/height")
+        width = float(frame.get("width", 0.0))
+        height = float(frame.get("height", 0.0))
+        if width <= 0.0 or height <= 0.0:
+            raise ValueError("frame width/height must be positive")
+        x_norm = (float(center.get("x", 0.0)) - width * 0.5) / (width * 0.5)
+        y_norm = (float(center.get("y", 0.0)) - height * 0.5) / (height * 0.5)
+    target = np.asarray(target_xy, dtype=float)
+    error = np.asarray([x_norm, y_norm], dtype=float) - target
+    return error, detection, payload
