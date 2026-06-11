@@ -97,10 +97,28 @@ The demo reuses existing outputs:
 
 It does not open the servo serial port or command motion.
 
+## Jetson Vision Deployment Package
+
+`Jetson_Vision_Export/` stores the recovered Jetson vision deployment archive
+and its deployment notes. The package is tracked with Git LFS because the
+archive is about 250 MB and exceeds normal GitHub file limits.
+
+It includes the application-level vision stack exported from the Jetson SSD:
+TensorRT YOLO service files, ONNX/engine model files, Orbbec SDK files, udev
+rules, and systemd service units. The package does not contain or install a
+kernel, DTB, DTBO, UEFI image, or camera device-tree overlay.
+
+The included README records the tested migration path to `192.168.1.64`
+JetPack 4 / Ubuntu 18.04, including TensorRT 7 engine rebuilds for the COCO,
+wrench, wrench-public-negative, and snow-king models.
+
 ## Main Folders
 
 - `bt_8bitdo_min/`: minimal 8BitDo Bluetooth gamepad package. It has separate
   read-only test entrypoints and a real-machine control entrypoint.
+- `Jetson_Vision_Export/`: Git LFS tracked Jetson vision deployment archive,
+  checksum, installer, and deployment README for the TensorRT/Orbbec vision
+  service package.
 - `Delta_Gcode_Servo/`: fuller delta robot G-code and servo control code.
 - `Delta-Robot/`: original delta robot simulation and model resources.
 - `part_model_rev/`: revised SolidWorks/3MF mechanical files for printing or

@@ -47,6 +47,18 @@ English README: [README.md](README.md)
 
 它只做坐标链路和离线核验，不打开舵机串口，也不发送运动命令。
 
+## Jetson 视觉部署包
+
+`Jetson_Vision_Export/` 保存从 Jetson 固态硬盘中恢复出来的视觉部署归档包和部署说明。归档文件约
+250 MB，已经通过 Git LFS 跟踪，避免超过普通 GitHub 文件大小限制。
+
+该包是应用层视觉栈，不是启动链路包。内容包括 TensorRT YOLO 服务文件、ONNX/engine
+模型、Orbbec SDK 文件、udev 规则和 systemd 服务文件；它不包含也不会安装 kernel、DTB、DTBO、
+UEFI 镜像或相机设备树覆盖。
+
+目录内 README 记录了在 `192.168.1.64` JetPack 4 / Ubuntu 18.04 上的迁移验证过程，包括
+COCO、扳手、扳手公开负样本和 snow-king 模型的 TensorRT 7 engine 重建结果。
+
 ## 实际硬件控制链路
 
 ```text
@@ -66,6 +78,8 @@ English README: [README.md](README.md)
 ## 目录说明
 
 - `bt_8bitdo_min/`：当前最小 8BitDo 蓝牙手柄控制包，包含只读测试、映射检查、串口预检和实机控制入口。
+- `Jetson_Vision_Export/`：通过 Git LFS 跟踪的 Jetson 视觉部署归档包、校验文件、安装脚本和
+  TensorRT/Orbbec 视觉服务部署说明。
 - `Delta_Gcode_Servo/`：Delta 机械臂 G-code、逆运动学和总线舵机控制工具。
 - `Delta-Robot/`：原始 Delta 机械臂仿真和模型资源。
 - `part_model_rev/`：改版 SolidWorks/3MF/STL 机械文件；`999.STL` 是当前 IMU + AprilTag 固定件。
