@@ -35,6 +35,7 @@ htmlcov/
 # Machine-generated runtime snapshots
 /Delta_Gcode_Servo/real_machine_test/runtime_status.log
 /Delta_Gcode_Servo/real_machine_test/workspace_points.csv
+/Delta_Gcode_Servo/real_machine_test/vision_tool_preview_latest.json
 
 # Temporary local files
 *.tmp

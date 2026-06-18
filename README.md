@@ -2,23 +2,25 @@
 
 中文说明: [README.zh-CN.md](README.zh-CN.md)
 
-Delta-arm simulation, calibration tools, servo driver code, sensor tools, and
-the minimal 8BitDo Bluetooth gamepad package for an onboard Ubuntu 18.04 Nano.
+Delta-arm simulation, calibration tools, servo driver code, sensor tools,
+hand-eye vision experiments, and the current real-machine Delta arm controller.
 
 License: GNU GPL v3.0. See [LICENSE](LICENSE). Upstream MIT notices are kept in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-The minimal onboard Nano + 8BitDo controller package was first organized on
-2026-05-12 and now lives under `bt_8bitdo_min/`.
+Current mainline: `Delta_Gcode_Servo/real_machine_test/gamepad_controller.py`.
+Use that controller for real-machine work. The older `bt_8bitdo_min/` package
+is kept as a minimal historical/auxiliary gamepad test package and is not the
+control mainline.
 
 ## Project Context
 
 This repository is for a lightweight delta-arm mounted on or tested for a UAV
-platform. The current real-machine control path is not just a gamepad demo: the
-onboard Ubuntu 18.04 Nano reads a Bluetooth gamepad, converts operator input
-into delta-arm XYZ motion, solves inverse kinematics, maps joint angles into
-raw bus-servo positions, and sends those commands through a Hiwonder xArm 1.6
-servo driver board to the physical servos.
+platform. The current real-machine control path is not just a gamepad demo:
+`Delta_Gcode_Servo/real_machine_test/gamepad_controller.py` reads operator
+input, converts it into delta-arm XYZ motion, solves inverse kinematics, maps
+joint angles into raw bus-servo positions, and sends those commands through a
+Hiwonder xArm 1.6 servo driver board to the physical servos.
 
 The mechanical concept and part of the early delta-robot modeling/control
 direction were based on Isaac Chasteau's MIT-licensed
@@ -58,12 +60,40 @@ are intended for iteration on the physical arm:
 - Check hole diameters, bearing fits, servo clearance, and carbon-tube linkage
   dimensions against the real hardware before printing or machining.
 
+## Current Control Mainline
+
+The actively maintained real-machine path is:
+
+```text
+Delta_Gcode_Servo/real_machine_test/gamepad_controller.py
+  -> feedback-based current XYZ/servo state
+  -> manual target XYZ or recorded A/B point playback
+  -> Delta IK
+  -> raw LX bus-servo mapping
+  -> Hiwonder xArm 1.6 servo driver board
+```
+
+The same folder now also contains a read-only vision preview:
+
+```text
+Delta_Gcode_Servo/real_machine_test/vision_tool_state.py
+  -> AprilTag_Vision/myAprilTag/output/apriltag_latest.json
+  -> Dual_Camera_HandEye/output/calibration_result.json
+  -> base_T_tool estimate
+  -> Delta IK/raw preview
+```
+
+The preview treats the base camera AprilTag estimate as an upper-layer mapping
+to the tool pose. It does not turn image pixels directly into servo angles and
+does not send motion commands. In `gamepad_controller.py`, the future
+vision-driven motion call is present as commented code until the base-camera XYZ
+axes and scale are confirmed on hardware.
+
 ## Hardware Control Path
 
 ```text
-8BitDo Ultimate 2 Wireless
-  -> Ubuntu 18.04 Nano Bluetooth /dev/input/eventX
-  -> bt_8bitdo_min evdev reader
+Gamepad / operator input
+  -> Delta_Gcode_Servo/real_machine_test/gamepad_controller.py
   -> realtime delta-arm controller
   -> XYZ target and inverse kinematics
   -> raw LX bus-servo position commands
@@ -114,12 +144,14 @@ wrench, wrench-public-negative, and snow-king models.
 
 ## Main Folders
 
-- `bt_8bitdo_min/`: minimal 8BitDo Bluetooth gamepad package. It has separate
-  read-only test entrypoints and a real-machine control entrypoint.
+- `Delta_Gcode_Servo/`: current real-machine mainline, G-code tools, Delta IK,
+  raw servo mapping, and the base-camera-to-tool preview.
+- `bt_8bitdo_min/`: older minimal 8BitDo Bluetooth gamepad package. It remains
+  useful for input and serial experiments, but it is not the active control
+  mainline.
 - `Jetson_Vision_Export/`: Git LFS tracked Jetson vision deployment archive,
   checksum, installer, and deployment README for the TensorRT/Orbbec vision
   service package.
-- `Delta_Gcode_Servo/`: fuller delta robot G-code and servo control code.
 - `Delta-Robot/`: original delta robot simulation and model resources.
 - `part_model_rev/`: revised SolidWorks/3MF mechanical files for printing or
   CNC-oriented manufacturing export, including `999.STL` for the IMU +
@@ -131,9 +163,9 @@ wrench, wrench-public-negative, and snow-king models.
 - `AprilTag_Vision/`: AprilTag camera detection tools.
 - `Bus_Servo/`: bus-servo examples and utilities.
 
-## 8BitDo Gamepad Package
+## Legacy 8BitDo Gamepad Package
 
-Use `bt_8bitdo_min` for the current Bluetooth gamepad work:
+Use `bt_8bitdo_min` only for older Nano/8BitDo input and serial experiments:
 
 ```bash
 cd ~/Desktop/bt_8bitdo_min
@@ -145,14 +177,15 @@ If the package is inside this repo on the Nano, use:
 cd ~/Desktop/78arm/bt_8bitdo_min
 ```
 
-The package is split into two paths:
+The package is split into two historical paths:
 
 - Test path: reads the gamepad only. It does not open the serial port and cannot
   move servos.
-- Real-machine path: opens the servo serial port, runs kinematics, and can send
-  commands to the servo driver board.
+- Legacy real-machine path: opens the servo serial port, runs kinematics, and
+  can send commands to the servo driver board. Do not use it as the current
+  control mainline.
 
-## Gamepad Test Steps
+## Legacy 8BitDo Test Steps
 
 1. Install runtime tools and udev rules:
 
@@ -190,7 +223,7 @@ stick Y axis up/down, and press `A/B/X/Y/LB/RB` once. This overwrites:
 - `logs/gamepad_once.log`
 - `logs/gamepad_once.json`
 
-4. Check whether the capture is complete for real-machine control:
+4. Check whether the capture is complete for the legacy 8BitDo control package:
 
 ```bash
 bash deploy/run_mapping_check.sh
@@ -218,9 +251,13 @@ bash deploy/run_serial_check.sh --port /dev/ttyUSB0
 This reads servo 1/2/3 feedback and battery voltage. It does not send a move
 command.
 
-## Real-Machine Control
+## Legacy 8BitDo Real-Machine Control
 
-Only after the mapping check and serial preflight are complete:
+The current real-machine mainline is
+`Delta_Gcode_Servo/real_machine_test/gamepad_controller.py`. The command below
+belongs to the older 8BitDo package and can move hardware, so use it only when
+explicitly testing that legacy path after mapping and serial preflight are
+complete:
 
 ```bash
 bash deploy/run_control_bt.sh --port /dev/ttyUSB0

@@ -13,6 +13,9 @@ Current division of work:
 
 - `gamepad_controller.py` remains the real servo-control entrypoint and can move
   hardware after the startup confirmations.
+- `vision_tool_state.py` is the read-only bridge from the base camera AprilTag
+  snapshot to `base_T_tool`, Delta IK reachability, and raw servo preview. It
+  never opens the servo serial port and never sends motion commands.
 - This controller already reads `../../IMU/wt61c_latest.json` and
   `../../AprilTag_Vision/myAprilTag/output/apriltag_latest.json` as sensor
   snapshots.
@@ -22,6 +25,50 @@ Current division of work:
 - The side object camera mount is treated as a fixed transform
   `tool_T_object_camera`, measured from CAD/assembly around the `999.STL`
   fixture, not solved by forcing the side camera to see a base tag.
+
+The current integration scope is the base camera that observes the top-side
+end-effector AprilTag. The actuator-side YOLO/object camera is intentionally
+left out of this step.
+
+## Base-camera tool pose preview
+
+Run the read-only preview from the repository root:
+
+```powershell
+cd C:\Users\hanjuncheng\Desktop\78arm
+python Delta_Gcode_Servo\real_machine_test\vision_tool_state.py
+```
+
+The command reads:
+
+- `AprilTag_Vision/myAprilTag/output/apriltag_latest.json`
+- `IMU/wt61c_latest.json`
+- `Dual_Camera_HandEye/output/calibration_result.json`
+
+It writes:
+
+- `Delta_Gcode_Servo/real_machine_test/vision_tool_preview_latest.json`
+
+The output includes `base_T_tool`, `tool_position_mm`, Delta IK reachability,
+and a raw-servo preview using the same mapping conventions as the controller.
+This is the intended first check for the chain:
+
+```text
+base_T_tool =
+  base_T_base_camera * base_camera_T_hand_tag * inverse(tool_T_hand_tag)
+```
+
+`gamepad_controller.py` calls the same preview helper while running and adds the
+latest `vision base_T_tool` line to `runtime_status.log`. The movement handoff
+is deliberately disabled in code:
+
+```python
+# if self.set_motion_target(candidate, "vision-base-camera"):
+#     return self.send_servo_positions()
+```
+
+Only enable that block after confirming the visual XYZ sign, scale, and
+workspace bounds on the physical arm.
 
 ## Safety model
 

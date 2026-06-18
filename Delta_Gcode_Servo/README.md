@@ -3,6 +3,11 @@
 ## 78arm 双相机手眼对接
 
 实机传感器快照读取逻辑在 `real_machine_test/gamepad_controller.py` 中维护。
+
+当前实机主线是 `real_machine_test/gamepad_controller.py`。新增的
+`real_machine_test/vision_tool_state.py` 只读取底座相机 AprilTag、IMU 快照和
+`Dual_Camera_HandEye/output/calibration_result.json`，输出 `base_T_tool`、IK
+可达性和舵机 raw 预览，不打开舵机串口，也不发送运动命令。
 `Dual_Camera_HandEye/` 复用这些现有输出做坐标链路核验，不新建控制包，也不替代
 本目录的实机控制入口。
 

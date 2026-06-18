@@ -30,6 +30,7 @@ from delta_gcode_servo.kinematics import forward_kinematics, inverse_kinematics
 from delta_gcode_servo.robot import DeltaRobot
 from delta_gcode_servo.servo import BusServoDriver
 from delta_gcode_servo.servo_mapping import load_servo_mappings_for_ids
+from vision_tool_state import VisionToolPreviewConfig, build_vision_tool_preview, write_json
 
 
 @dataclass
@@ -444,6 +445,13 @@ class RealTimeArmController:
         self.sensor_snapshot = SensorSnapshot()
         self.imu_snapshot_path = self.project_root / "IMU" / "wt61c_latest.json"
         self.apriltag_snapshot_path = self.project_root / "AprilTag_Vision" / "myAprilTag" / "output" / "apriltag_latest.json"
+        self.handeye_calibration_path = self.project_root / "Dual_Camera_HandEye" / "output" / "calibration_result.json"
+        self.vision_tool_preview_path = Path(__file__).with_name("vision_tool_preview_latest.json")
+        self.vision_tool_preview_interval = 0.25
+        self.last_vision_tool_preview_time = 0.0
+        self.vision_tool_preview: dict[str, Any] | None = None
+        self.vision_tool_preview_error: str | None = None
+        self.vision_hand_tag_id: int | None = None
         self.tooling_config = load_tooling_servo_config(
             self.project_root / "lx225_tool_demo" / "config" / "lx225_tool.demo.toml"
         )
@@ -898,6 +906,62 @@ class RealTimeArmController:
         )
         self.update_control_frame_from_sensors()
 
+    def update_vision_tool_preview(self, *, force: bool = False) -> dict[str, Any] | None:
+        now = time.perf_counter()
+        if not force and now - self.last_vision_tool_preview_time < self.vision_tool_preview_interval:
+            return self.vision_tool_preview
+
+        self.last_vision_tool_preview_time = now
+        config = VisionToolPreviewConfig(
+            calibration_path=self.handeye_calibration_path,
+            apriltag_snapshot_path=self.apriltag_snapshot_path,
+            imu_snapshot_path=self.imu_snapshot_path,
+            output_path=self.vision_tool_preview_path,
+            hand_tag_id=self.vision_hand_tag_id,
+        )
+        try:
+            payload = build_vision_tool_preview(config)
+            write_json(self.vision_tool_preview_path, payload)
+            self.vision_tool_preview = payload
+            self.vision_tool_preview_error = None
+            self.debug_log(
+                "VISION_TOOL_PREVIEW "
+                f"xyz_mm={payload.get('tool_position_mm')} "
+                f"ik={payload.get('delta_ik', {}).get('reachable')}"
+            )
+            return payload
+        except Exception as exc:
+            self.vision_tool_preview_error = str(exc)
+            self.debug_log(f"VISION_TOOL_PREVIEW_ERROR error={exc}")
+            return None
+
+    def preview_vision_motion_target(self) -> bool:
+        payload = self.update_vision_tool_preview(force=True)
+        if payload is None:
+            return False
+
+        delta_ik = payload.get("delta_ik", {})
+        if not delta_ik.get("reachable", False):
+            return False
+
+        target_position = np.asarray(payload["tool_position_mm"], dtype=float)
+        ok, candidate, _angles_rad, positions = self.resolve_motion_target(
+            target_position,
+            "vision-base-camera-preview",
+        )
+        self.debug_log(
+            "VISION_TARGET_PREVIEW "
+            f"ok={ok} xyz=({candidate[0]:.3f},{candidate[1]:.3f},{candidate[2]:.3f}) raw={positions}"
+        )
+
+        # Motion is intentionally disabled for the first base-camera chain test.
+        # Enable only after confirming the visual XYZ axes and scale on hardware:
+        #
+        # if self.set_motion_target(candidate, "vision-base-camera"):
+        #     return self.send_servo_positions()
+        #
+        return ok
+
     def cycle_sensor_frame_mode(self) -> None:
         modes = ["OFF", "IMU", "TAG"]
         current_index = modes.index(self.sensor_frame_mode)
@@ -1116,6 +1180,20 @@ class RealTimeArmController:
             if self.sensor_snapshot.apriltag_age_ms is not None:
                 tag_text += f", age_ms={self.sensor_snapshot.apriltag_age_ms:.0f}"
             lines.append(tag_text)
+
+        if self.vision_tool_preview is not None:
+            vision_xyz = self.vision_tool_preview.get("tool_position_mm", [0.0, 0.0, 0.0])
+            delta_ik = self.vision_tool_preview.get("delta_ik", {})
+            if isinstance(vision_xyz, list) and len(vision_xyz) >= 3:
+                lines.append(
+                    "vision base_T_tool: "
+                    f"X={float(vision_xyz[0]):+.2f} mm, "
+                    f"Y={float(vision_xyz[1]):+.2f} mm, "
+                    f"Z={float(vision_xyz[2]):+.2f} mm, "
+                    f"ik={bool(delta_ik.get('reachable', False))}"
+                )
+        elif self.vision_tool_preview_error:
+            lines.append(f"vision base_T_tool: unavailable ({self.vision_tool_preview_error})")
 
         if self.battery_voltage_mv is not None:
             lines.append(f"驱动板电压: {self.battery_voltage_mv} mV")
@@ -1708,6 +1786,7 @@ class RealTimeArmController:
             return
 
         self.sync_sensor_feedback(force=True)
+        self.update_vision_tool_preview(force=True)
         print("\nStart realtime control.")
         print("D-pad -> X/Y, right stick -> Z, A -> quit, B -> record, X -> safe scan.")
         print("Y -> sensor frame mode, LB/RB -> tooling servo if servo4 is configured.")
@@ -1722,6 +1801,7 @@ class RealTimeArmController:
                     break
 
                 self.sync_sensor_feedback()
+                self.update_vision_tool_preview()
                 continue_run, _ = self.update_from_gamepad()
                 if not continue_run:
                     print("\nQuit command received.")
