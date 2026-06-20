@@ -7,6 +7,9 @@ This folder stores the Jetson vision deployment package recovered from the SSD a
 - `jetson_vision_export_20260612_0215.tar.gz`: application-level deployment archive, about 250 MB.
 - `jetson_vision_export_20260612_0215.tar.gz.sha256`: portable SHA-256 checksum for the archive.
 - `install_jetson_vision_export.sh`: installer script copied with the package. It downloads the archive from an HTTP server and installs it on a Jetson target.
+- `yolo_fisheye_calibration_jetson/`: small desktop package for the Jetson-side YOLO/object 160-degree fisheye camera calibration.
+- `yolo_fisheye_calibration_jetson.tar.gz`: archive of that desktop calibration package.
+- `yolo_fisheye_calibration_jetson.tar.gz.sha256`: checksum for the fisheye calibration archive.
 
 The archive contains:
 
@@ -92,3 +95,18 @@ Enable Orbbec depth service only after an Orbbec device appears in `lsusb`:
 lsusb | grep -Ei '2bc5|orbbec'
 sudo systemctl enable --now orbbec-depth-grid.service
 ```
+
+## YOLO Fisheye Calibration On Jetson Desktop
+
+For the 160-degree YOLO/object camera connected by Jetson CSI ribbon cable, copy
+or extract the small calibration package on the target desktop:
+
+```bash
+cd ~/Desktop
+tar -xzf yolo_fisheye_calibration_jetson.tar.gz
+cd yolo_fisheye_calibration_jetson
+bash run_csi_fisheye_calibration.sh
+```
+
+This package only opens the camera and runs OpenCV fisheye calibration. It does
+not open the servo serial port and does not move the arm.
