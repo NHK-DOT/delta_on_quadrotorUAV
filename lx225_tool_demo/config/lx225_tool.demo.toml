@@ -15,7 +15,7 @@
 [serial]
 # 实际连接舵机驱动板的串口。
 # 注意不要填成 IMU 的串口。
-port = "COM8"
+port = "COM15"
 
 # 波特率。
 baudrate = 9600
@@ -33,24 +33,27 @@ position_step = 4
 [servos.servo1]
 id = 1
 position_step = 4
-raw_min = 0
-raw_max = 834
+raw_min = 399
+raw_max = 830
+home_raw = 814
 mapped_angle_at_raw_min = 0.0
 mapped_angle_at_raw_max = 1000.0
 
 [servos.servo2]
 id = 2
 position_step = 4
-raw_min = 0
-raw_max = 770
+raw_min = 109
+raw_max = 610
+home_raw = 472
 mapped_angle_at_raw_min = 0.0
 mapped_angle_at_raw_max = 1000.0
 
 [servos.servo3]
 id = 3
 position_step = 4
-raw_min = 0
-raw_max = 816
+raw_min = 375
+raw_max = 860
+home_raw = 739
 mapped_angle_at_raw_min = 0.0
 mapped_angle_at_raw_max = 1000.0
 

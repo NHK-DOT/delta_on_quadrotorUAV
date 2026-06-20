@@ -159,7 +159,7 @@ def servo_raw_preview_for_angles(angles_rad: np.ndarray) -> dict[str, Any]:
         for servo_id in servo_ids
     }
     reference_raw = {
-        servo_id: servo_mappings[servo_id].quantize_raw(servo_mappings[servo_id].raw_max)
+        servo_id: servo_mappings[servo_id].reference_raw
         for servo_id in servo_ids
     }
     reference_coord = {

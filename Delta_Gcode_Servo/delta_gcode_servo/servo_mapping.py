@@ -24,6 +24,7 @@ class ServoAxisMapping:
     logical_min: float
     logical_max: float
     position_step: int = 1
+    home_raw: int | None = None
 
     def __post_init__(self) -> None:
         if self.raw_min == self.raw_max:
@@ -55,6 +56,10 @@ class ServoAxisMapping:
     def quantize_raw(self, raw_value: int | float) -> int:
         quantized = int(round(float(raw_value) / self.position_step) * self.position_step)
         return self.clamp_raw(quantized)
+
+    @property
+    def reference_raw(self) -> int:
+        return self.quantize_raw(self.raw_max if self.home_raw is None else self.home_raw)
 
     def raw_to_logical(self, raw_value: int | float) -> float:
         return _linear_map(
@@ -183,6 +188,7 @@ def load_servo_mappings(config_path: str | Path | None = None) -> dict[int, Serv
             logical_min=float(item.get("mapped_angle_at_raw_min", 0.0)),
             logical_max=float(item.get("mapped_angle_at_raw_max", 240.0)),
             position_step=int(item.get("position_step", default_step)),
+            home_raw=int(item["home_raw"]) if "home_raw" in item else None,
         )
         mappings[mapping.servo_id] = mapping
     return mappings

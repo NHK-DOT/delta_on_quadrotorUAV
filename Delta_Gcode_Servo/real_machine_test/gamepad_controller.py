@@ -348,7 +348,7 @@ class RealTimeArmController:
             for servo_id in self.servo_ids
         }
         self.reference_servo_positions = {
-            servo_id: self.quantize_servo_position(servo_id, self.servo_mappings[servo_id].raw_max)
+            servo_id: self.servo_mappings[servo_id].reference_raw
             for servo_id in self.servo_ids
         }
         self.reference_servo_coords = {
@@ -1692,7 +1692,7 @@ class RealTimeArmController:
 
         new_position = self.user_motion_origin()
         delta_x_user = motion_left_x * self.speed_xy * self.update_interval
-        delta_y_user = -motion_left_y * self.speed_xy * self.update_interval
+        delta_y_user = motion_left_y * self.speed_xy * self.update_interval
         cos_angle = float(np.cos(self.xy_rotation_rad))
         sin_angle = float(np.sin(self.xy_rotation_rad))
         delta_x_model = cos_angle * delta_x_user - sin_angle * delta_y_user
