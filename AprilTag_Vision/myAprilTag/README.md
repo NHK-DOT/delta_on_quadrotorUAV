@@ -63,6 +63,8 @@ USB 相机打开、像素格式协商、AprilTag 检测和 JSON 快照输出，�
   主检测脚本
 - `src/calibrate_camera.py`
   棋盘格标定脚本
+- `src/calibrate_fisheye_camera.py`
+  YOLO/object 160 度鱼眼相机标定脚本，使用说明见 `docs/YOLO_FISHEYE_CAMERA_CALIBRATION.md`
 - `src/generate_apriltags.py`
   标签生成脚本
 - `config/apriltag_detector.toml`
