@@ -1,71 +1,189 @@
-# YOLO Fisheye Calibration Package For Jetson
+# YOLO Fisheye Calibration For Jetson
 
-这个小包用于 `192.168.1.64` 那台 Jetson 上的末端/侧向 YOLO 扳手识别鱼眼相机标定。
+This package calibrates the end/side YOLO wrench camera on the Jetson at
+`192.168.1.64`. It only opens the camera. It does not open the arm serial port
+and does not move the robot.
 
-它不控制机械臂，不打开舵机串口，只打开相机并采集棋盘格标定图。
+## Current Board
 
-## 文件
+The printed board says `11 x 8`. That is the number of squares.
 
-- `calibrate_fisheye_camera.py`：OpenCV fisheye 标定脚本，兼容 Ubuntu 18.04 / Python 3.6。
-- `run_csi_fisheye_calibration.sh`：软排 CSI 相机启动脚本。
-- `run_usb_fisheye_calibration.sh`：USB 相机启动脚本，备用。
-- `YOLO_FISHEYE_CAMERA_CALIBRATION.md`：完整中文说明。
+OpenCV calibration needs inner corners:
 
-## 软排 CSI 相机
+```text
+11 x 8 squares = 10 x 7 inner corners
+square size = 20 mm = 0.020 m
+```
 
-在 Jetson 桌面解压后执行：
+Use:
+
+```text
+COLS=10
+ROWS=7
+SQUARE_SIZE_M=0.020
+```
+
+## One-Click Calibration
+
+Run on the Jetson desktop:
 
 ```bash
 cd ~/Desktop/yolo_fisheye_calibration_jetson
-bash run_csi_fisheye_calibration.sh
+./one_click_fisheye_calibration.sh
 ```
 
-默认参数：
+The script will:
 
-- `sensor-id=0`
-- `flip-method=0`
-- `1920x1080`
-- `30 fps`
-- 棋盘格内角点 `9 x 6`
-- 单格边长 `0.025 m`
+1. Restart `nvargus-daemon`.
+2. Clear the current `capture_stream/` and temporary calibration output.
+3. Open a GStreamer/NVIDIA preview window.
+4. Save frames to `capture_stream/frame_*.jpg`.
+5. Wait until you press `Ctrl+C` in the script terminal.
+6. Scan saved images for valid checkerboards.
+7. Write fisheye intrinsics.
 
-如果安装方向不对：
+During capture, watch the `gst-launch-1.0` preview window. Keep the full board
+visible and sharp. Hold each pose for about 3 seconds.
 
-```bash
-FLIP_METHOD=2 bash run_csi_fisheye_calibration.sh
+Recommended poses:
+
+```text
+center
+left-middle
+right-middle
+top-middle
+bottom-middle
+top-left
+top-right
+bottom-left
+bottom-right
+near
+far
+slight left tilt
+slight right tilt
+slight up tilt
+slight down tilt
 ```
 
-如果是第二路 CSI：
+When enough frames are captured, click the script terminal and press:
 
-```bash
-SENSOR_ID=1 bash run_csi_fisheye_calibration.sh
+```text
+Ctrl+C
 ```
 
-## USB 相机备用命令
+Then wait for offline calibration to finish.
 
-```bash
-cd ~/Desktop/yolo_fisheye_calibration_jetson
-bash run_usb_fisheye_calibration.sh
-```
+## Outputs
 
-## 热键
-
-- `space`：保存当前有效棋盘格样本。
-- `c`：样本数量足够后执行标定。
-- `q`：退出。
-
-## 输出
-
-默认输出：
+Main calibration file:
 
 ```text
 calibration/yolo_fisheye_camera_intrinsics.json
 ```
 
-采集图：
+Valid checkerboard images:
 
 ```text
-calibration/captures_yolo_fisheye/
+calibration/valid_fisheye_frames/
 ```
 
-这份文件是末端 YOLO 鱼眼相机的内参，不要覆盖底座 AprilTag 相机的 `camera_intrinsics.json`。
+Raw captured frames:
+
+```text
+capture_stream/
+```
+
+Good runs should be archived under:
+
+```text
+calibration/saved_runs/
+```
+
+One usable saved run currently exists on the Jetson:
+
+```text
+calibration/saved_runs/20180129_001345_rms_2p09_samples29/
+```
+
+That run used:
+
+```text
+valid samples: 29
+RMS: 2.09 px
+image size: 1280 x 720
+pattern: 10 x 7 inner corners
+square size: 20 mm
+```
+
+## Preview Stutter
+
+If the preview briefly freezes or stutters, it is usually the Jetson
+Argus/GStreamer/EGL display path. It does not mean every saved frame is bad.
+
+The calibration flow intentionally uses:
+
+```text
+GStreamer preview + frame saving -> offline checkerboard filtering
+```
+
+Only images where the complete checkerboard is detected are used. Bad frames are
+skipped automatically.
+
+If the camera path becomes stuck:
+
+```bash
+sudo systemctl restart nvargus-daemon
+./one_click_fisheye_calibration.sh
+```
+
+## Useful Variants
+
+Second CSI camera:
+
+```bash
+SENSOR_ID=1 ./one_click_fisheye_calibration.sh
+```
+
+Rotated camera mount:
+
+```bash
+FLIP_METHOD=2 ./one_click_fisheye_calibration.sh
+```
+
+Different capture resolution:
+
+```bash
+WIDTH=1920 HEIGHT=1080 ./one_click_fisheye_calibration.sh
+```
+
+Higher saved-frame rate:
+
+```bash
+SAVE_FPS=1/1 ./one_click_fisheye_calibration.sh
+```
+
+## Legacy/Backup Entry Points
+
+OpenCV GUI calibration, if HighGUI works on the target:
+
+```bash
+bash run_csi_fisheye_calibration.sh
+```
+
+No-GUI OpenCV live mode:
+
+```bash
+bash run_csi_fisheye_calibration_nogui.sh
+```
+
+Offline calibration from existing frames:
+
+```bash
+bash run_offline_fisheye_calibration.sh
+```
+
+USB camera backup:
+
+```bash
+bash run_usb_fisheye_calibration.sh
+```

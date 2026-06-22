@@ -105,8 +105,10 @@ or extract the small calibration package on the target desktop:
 cd ~/Desktop
 tar -xzf yolo_fisheye_calibration_jetson.tar.gz
 cd yolo_fisheye_calibration_jetson
-bash run_csi_fisheye_calibration.sh
+./one_click_fisheye_calibration.sh
 ```
 
-This package only opens the camera and runs OpenCV fisheye calibration. It does
-not open the servo serial port and does not move the arm.
+The current board is `11 x 8` squares, which is `10 x 7` OpenCV inner corners,
+with 20 mm square size. The one-click script opens a GStreamer/NVIDIA preview,
+saves frames, and then runs offline OpenCV fisheye calibration after `Ctrl+C`.
+It does not open the servo serial port and does not move the arm.

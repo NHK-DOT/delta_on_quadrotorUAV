@@ -71,8 +71,8 @@ profile = "speed"
 # AprilTag 标签家族。你当前项目默认是 tag36h11。
 family = "tag36h11"
 
-# 标签黑色外框边长，单位米。80 mm 就写 0.08。
-tag_size_m = 0.031
+# 标签黑色外框边长，单位米。30.5 mm 就写 0.0305。
+tag_size_m = 0.0305
 
 # 如果没有标定文件，就用这个水平视场角做近似测距。
 horizontal_fov_deg = 70.0
