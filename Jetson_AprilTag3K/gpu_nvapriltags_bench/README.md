@@ -301,9 +301,9 @@ hold：无
 
 ## 资料依据
 
-- AprilRobotics 官方 README 说明：增大 `quad_decimate` 会加快检测，但代价是检测距离；如果图像有噪声，`quad_sigma` 这类 Gaussian blur 参数可能有帮助。
-- `pupil-apriltags` 的 API 文档也说明：低分辨率 quad 检测会带来检测率/位姿精度损失；非常 noisy 的图像可受益于非零 `quad_sigma`；`decode_sharpening` 可能帮助小标签，但在特殊光照或低光照下不一定有帮助。
-- NVIDIA Isaac ROS AprilTag 文档给出的图像链路是 camera -> rectify -> resize -> AprilTag，并明确输入分辨率要按检测距离和标签所需像素数选择；这和本次 A/B 中 `1600x1208` 比 `1280x960` 更稳、`960x724` 归零是一致的。
+- AprilRobotics 官方 README 说明：增大 `quad_decimate` 会加快检测，但代价是检测距离；如果图像有噪声，`quad_sigma` 这类 Gaussian blur 参数可能有帮助。来源：https://github.com/AprilRobotics/apriltag
+- `pupil-apriltags` API 文档说明：低分辨率 quad 检测会带来检测率/位姿精度损失；非常 noisy 的图像可受益于非零 `quad_sigma`；`decode_sharpening` 可能帮助小标签，但在特殊光照或低光照下不一定有帮助。来源：https://pupil-apriltags.readthedocs.io/en/latest/api.html
+- NVIDIA Isaac ROS AprilTag 文档给出的图像链路是 camera -> rectify -> resize -> AprilTag，输入分辨率要按检测距离和标签所需像素数选择。来源：https://github.com/NVIDIA-ISAAC-ROS/isaac_ros_apriltag
 
 ## 不允许的改动
 
