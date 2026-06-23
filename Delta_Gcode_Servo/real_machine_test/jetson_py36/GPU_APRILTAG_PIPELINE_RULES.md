@@ -66,9 +66,9 @@ Before accepting future changes, record:
 - Whether the detector is still GPU `nvAprilTags`.
 - Exact pre-processing inserted before the GPU detector.
 
-## Current Accepted Fix
+## Stationary Dark-Scene Fix
 
-The accepted fix for the current dark scene is a detector-input-only
+The accepted fix for stationary dark-scene checks is a detector-input-only
 preprocessing stage in the GPU bench:
 
 ```text
@@ -92,11 +92,11 @@ last tag id=3
 This preserves the GPU detector and the 3K full-FOV downsampled runtime. It is
 not a CPU AprilTag fallback.
 
-The follow-up continuity fix keeps the same detector path and adds:
+The earlier continuity experiment kept the same detector path and added:
 
 - duplicate-ID filtering in each frame, keeping the lower-hamming/larger-area tag
-- optional bounded GUI last-good overlay, default disabled
-- optional bounded JSON last-good output, default disabled, with `is_held` and `held_ms`
+- optional bounded GUI last-good overlay
+- optional bounded JSON last-good output with `is_held` and `held_ms`
 
 Latest verification:
 
@@ -110,11 +110,39 @@ detect_ms avg=23.19
 latest JSON id=3
 ```
 
-ISP exposure/TNR/gain controls were exposed for testing, but they are not enabled
-by default because the tested combinations reduced recognition in the current
-scene.
+This was useful for proving that the GPU path could recognize the tag, but it is
+not acceptable for moving-arm sampling because stale positions visibly trail the
+real tag.
 
-For moving-arm operation, hold must remain disabled. If detection only works
-when motion stops, treat it as an image-capture problem first: shorten exposure,
-increase lighting, and only then compensate with gain. Do not hide motion blur
-with stale tag positions.
+## Moving-Arm Rule
+
+For moving-arm operation, GUI and JSON hold are disabled, not merely shortened.
+The current binary keeps `--gui-hold-ms` and `--output-hold-ms` as compatibility
+arguments, but it writes and draws only current-frame detections.
+
+If detection only works when motion stops, treat it as an image-capture problem
+first: shorten exposure, disable temporal noise reduction, increase lighting,
+and only then compensate with gain. Do not hide motion blur with stale tag
+positions.
+
+The moving-arm launch path is:
+
+```text
+/home/nvidia/Desktop/yolo_fisheye_calibration_jetson/nv_gpu_apriltags_bench/run_motion_1280x960_gui.sh
+```
+
+Default moving-arm settings:
+
+```text
+preprocess: motion
+path: BGR frame -> grayscale -> unsharp mask -> gamma 0.70 -> BGRA upload -> nvAprilTagsDetect
+TNR: off
+exposuretimerange: 34000 8000000 ns
+gainrange: 1 12
+ispdigitalgainrange: 1 4
+GUI/JSON hold: disabled
+```
+
+The current Jetson Xavier NX `nvarguscamerasrc` rejects
+`exposuretimerange="13000 8000000"` even though the sensor mode log lists
+13000 ns as the minimum. Use 34000 ns or higher for the lower bound.

@@ -19,7 +19,7 @@ cd /home/nvidia/Desktop/yolo_fisheye_calibration_jetson/nv_gpu_apriltags_bench
 
 ```bash
 cd /home/nvidia/Desktop/yolo_fisheye_calibration_jetson/nv_gpu_apriltags_bench
-./run_fullfov_1280x960_gui.sh
+./run_motion_1280x960_gui.sh
 ```
 
 The script:
@@ -34,17 +34,21 @@ The script:
 
 The GUI is color because OpenCV receives BGR frames, then uploads BGRA to CUDA. The detector itself runs through NVIDIA's GPU library.
 
-The live detector now keeps the original BGR frame for display, but sends a
-separate preprocessed frame into `nvAprilTagsDetect`. The default preprocessing
-is:
+The live detector keeps the original BGR frame for display, but sends a
+separate preprocessed frame into `nvAprilTagsDetect`. The moving-arm default
+preprocessing is:
 
 ```text
-gray_blur_gamma07
+motion
 ```
 
-That means: BGR camera frame -> grayscale -> small 3x3 Gaussian blur -> gamma
-0.70 -> BGRA upload -> NVIDIA GPU detector. This preserves the original video
-view while improving the detector input under the current dark lighting.
+That means: BGR camera frame -> grayscale -> unsharp mask -> gamma 0.70 -> BGRA
+upload -> NVIDIA GPU detector. This preserves the original video view while
+improving the detector input without blurring tag edges during motion.
+
+For stationary dark-scene checks, `PREPROCESS=gray_blur_gamma07
+./run_fullfov_1280x960_gui.sh` is still available, but it is no longer the
+moving-arm default.
 
 ## Direct Command
 
@@ -57,7 +61,7 @@ view while improving the detector input under the current dark lighting.
   --seconds 0 \
   --warmup 8 \
   --gui \
-  --preprocess gray_blur_gamma07 \
+  --preprocess motion \
   --calib-json /home/nvidia/Desktop/yolo_fisheye_calibration_jetson/calibration/usable_3k_downsample_1280x960/apriltag_fullfov_1280x960_intrinsics.json \
   --output-json /home/nvidia/Desktop/yolo_fisheye_calibration_jetson/output/apriltag_latest_jetson.json
 ```
@@ -82,6 +86,8 @@ gray_blur_gamma06
 gray_blur_gamma07
 gray_median_gamma06
 gray_sharp_gamma06
+motion
+motion_clahe
 ```
 
 ## Useful Results
@@ -108,14 +114,18 @@ Current dark-scene verification on `192.168.1.80`:
 | `gray_blur_gamma07` | 252 | 20.96 | 132 | 2.82 ms | 21.13 ms |
 | `gray_blur_gamma07` + duplicate-ID filter + short JSON hold | 252 | 20.95 | 206 | 2.75 ms | 23.19 ms |
 
-`gray_blur_gamma07` is the current default because it keeps the pipeline at the
-sensor frame-rate ceiling while substantially improving tag recognition. It is
-still the NVIDIA GPU detector, not a CPU fallback.
+`gray_blur_gamma07` was the best measured stationary dark-scene preprocessing,
+but it intentionally blurs before gamma. The moving-arm default is now `motion`
+because a moving tag needs sharper edges more than stationary low-light
+forgiveness. Both paths still use the NVIDIA GPU detector, not a CPU fallback.
 
-The GUI and JSON output do not hold stale detections by default because stale
-boxes visibly trail the tag during motion. If a bounded last-good hold is needed
-for a stationary calibration procedure, set `GUI_HOLD_MS` or `OUTPUT_HOLD_MS`
-explicitly. Held detections are marked with:
+The GUI and JSON output do not hold stale detections. The command-line
+`GUI_HOLD_MS` and `OUTPUT_HOLD_MS` options are kept only for compatibility with
+older launch commands; the current binary ignores hold and writes/draws only
+real detections from the current frame. This is deliberate because stale boxes
+visibly trail the tag during motion.
+
+Older builds marked held detections with:
 
 ```json
 {
@@ -125,8 +135,7 @@ explicitly. Held detections are marked with:
 }
 ```
 
-This is a bounded continuity aid for stationary workflows, not a replacement for
-real detection. Keep `OUTPUT_HOLD_MS=0` for moving-arm operation.
+Current moving-arm builds should always show `"is_held": false`.
 
 The bench also exposes Jetson ISP controls for experiments:
 
@@ -145,19 +154,42 @@ usually means the detector input is suffering from motion blur or low edge
 contrast while the tag is moving. Keep hold disabled for moving-arm operation:
 
 ```bash
-GUI_HOLD_MS=0 OUTPUT_HOLD_MS=0 bash run_fullfov_1280x960_gui.sh
+./run_motion_1280x960_gui.sh
 ```
 
-The next things to test are shorter exposure and more light:
+`run_motion_1280x960_gui.sh` applies these defaults:
 
 ```bash
-EXPOSURETIMERANGE="13000 12000000" GAINRANGE="1 10" ISPDIGITALGAINRANGE="1 4" \
-  GUI_HOLD_MS=0 OUTPUT_HOLD_MS=0 bash run_fullfov_1280x960_gui.sh
+PREPROCESS=motion
+GUI_HOLD_MS=0
+OUTPUT_HOLD_MS=0
+TNR_MODE=0
+TNR_STRENGTH=0
+EXPOSURETIMERANGE="34000 8000000"
+GAINRANGE="1 12"
+ISPDIGITALGAINRANGE="1 4"
 ```
 
 If the image becomes too dark, add physical lighting before increasing exposure
 again. Longer exposure makes the tag easier to see when stationary but worse
 during motion.
+
+Try these exposure ceilings in order while moving the tag at the real arm speed:
+
+```bash
+EXPOSURETIMERANGE="34000 6000000" ./run_motion_1280x960_gui.sh
+EXPOSURETIMERANGE="34000 8000000" ./run_motion_1280x960_gui.sh
+EXPOSURETIMERANGE="34000 10000000" ./run_motion_1280x960_gui.sh
+EXPOSURETIMERANGE="34000 12000000" ./run_motion_1280x960_gui.sh
+```
+
+If all short-exposure modes are too dark, the correct fix is stronger, more
+even lighting on the tag and base area. Do not restore GUI/JSON hold to hide the
+misses; the sampler needs current-frame tag position.
+
+On the current Jetson Xavier NX image, `exposuretimerange` values starting at
+`13000` are reported in the sensor range but rejected by `nvarguscamerasrc`.
+Use `34000` or higher as the lower bound.
 
 ## Calibration Caveat
 

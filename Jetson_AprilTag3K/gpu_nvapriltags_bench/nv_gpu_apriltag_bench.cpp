@@ -43,8 +43,6 @@ struct Args {
   float cx = 0.0f;
   float cy = 0.0f;
   float tag_size = 0.0305f;
-  float gui_hold_ms = 0.0f;
-  float output_hold_ms = 0.0f;
   std::string exposuretimerange;
   std::string gainrange;
   std::string ispdigitalgainrange;
@@ -94,12 +92,12 @@ void usage(const char* argv0) {
       << "                            raw|equalize|clahe|gamma06|adaptive|\n"
       << "                            color_gamma06|color_gamma045|gain|y_equalize|y_clahe|\n"
       << "                            gray_blur_gamma045|gray_blur_gamma05|gray_blur_gamma06|gray_blur_gamma07|\n"
-      << "                            gray_median_gamma06|gray_sharp_gamma06\n"
+      << "                            gray_median_gamma06|gray_sharp_gamma06|motion|motion_clahe\n"
       << "  --hfov-deg N             approximate pinhole intrinsics from horizontal FOV\n"
       << "  --calib-json PATH        load and scale camera_matrix from calibration JSON\n"
       << "  --pose fx,fy,cx,cy,tag   enable pose output with intrinsics and tag size\n"
-      << "  --gui-hold-ms N          draw last detected tag for N ms in GUI only\n"
-      << "  --output-hold-ms N       reuse last JSON detection for N ms after a miss\n"
+      << "  --gui-hold-ms N          deprecated no-op; hold is disabled for moving-arm use\n"
+      << "  --output-hold-ms N       deprecated no-op; hold is disabled for moving-arm use\n"
       << "  --output-json PATH       write latest detections for arm-side Python\n";
 }
 
@@ -274,7 +272,9 @@ bool parse_args(int argc, char** argv, Args* args) {
           args->preprocess != "gray_blur_gamma06" &&
           args->preprocess != "gray_blur_gamma07" &&
           args->preprocess != "gray_median_gamma06" &&
-          args->preprocess != "gray_sharp_gamma06") {
+          args->preprocess != "gray_sharp_gamma06" &&
+          args->preprocess != "motion" &&
+          args->preprocess != "motion_clahe") {
         std::cerr << "unknown preprocess mode: " << args->preprocess << "\n";
         return false;
       }
@@ -290,10 +290,12 @@ bool parse_args(int argc, char** argv, Args* args) {
       if (!v || !parse_pose(v, args)) return false;
     } else if (key == "--gui-hold-ms") {
       const char* v = need_value("--gui-hold-ms");
-      if (!v || !parse_float(v, &args->gui_hold_ms)) return false;
+      float ignored = 0.0f;
+      if (!v || !parse_float(v, &ignored)) return false;
     } else if (key == "--output-hold-ms") {
       const char* v = need_value("--output-hold-ms");
-      if (!v || !parse_float(v, &args->output_hold_ms)) return false;
+      float ignored = 0.0f;
+      if (!v || !parse_float(v, &ignored)) return false;
     } else if (key == "--output-json") {
       const char* v = need_value("--output-json");
       if (!v) return false;
@@ -435,6 +437,8 @@ std::string pixel_mode_for_preprocess(const std::string& preprocess) {
   if (preprocess == "gray_blur_gamma07") return "BGR_gray_blur_gamma0.70_to_BGRA_cuda";
   if (preprocess == "gray_median_gamma06") return "BGR_gray_median_gamma0.60_to_BGRA_cuda";
   if (preprocess == "gray_sharp_gamma06") return "BGR_gray_sharpen_gamma0.60_to_BGRA_cuda";
+  if (preprocess == "motion") return "BGR_gray_unsharp_gamma0.70_to_BGRA_cuda";
+  if (preprocess == "motion_clahe") return "BGR_gray_CLAHE_unsharp_gamma0.70_to_BGRA_cuda";
   return "BGR_to_BGRA_cuda";
 }
 
@@ -606,6 +610,15 @@ void preprocess_for_detector(
     cv::GaussianBlur(*gray, *scratch_gray, cv::Size(3, 3), 0.0);
     cv::addWeighted(*gray, 1.55, *scratch_gray, -0.55, 0.0, *processed_gray);
     cv::LUT(*processed_gray, gamma06_lut, *processed_gray);
+  } else if (args.preprocess == "motion") {
+    cv::GaussianBlur(*gray, *scratch_gray, cv::Size(3, 3), 0.0);
+    cv::addWeighted(*gray, 1.85, *scratch_gray, -0.85, 0.0, *processed_gray);
+    cv::LUT(*processed_gray, gamma07_lut, *processed_gray);
+  } else if (args.preprocess == "motion_clahe") {
+    clahe->apply(*gray, *scratch_gray);
+    cv::GaussianBlur(*scratch_gray, *processed_gray, cv::Size(3, 3), 0.0);
+    cv::addWeighted(*scratch_gray, 1.55, *processed_gray, -0.55, 0.0, *processed_gray);
+    cv::LUT(*processed_gray, gamma07_lut, *processed_gray);
   } else if (args.preprocess == "adaptive") {
     cv::adaptiveThreshold(
         *gray, *processed_gray, 255,
@@ -708,12 +721,8 @@ int main(int argc, char** argv) {
   constexpr uint32_t kMaxTags = 64;
   std::vector<nvAprilTagsID_t> tags(kMaxTags);
   std::vector<nvAprilTagsID_t> filtered_tags;
-  std::vector<nvAprilTagsID_t> json_hold_tags(kMaxTags);
   uint32_t num_tags = 0;
   uint32_t filtered_num_tags = 0;
-  uint32_t json_hold_count = 0;
-  double json_hold_until_ms = 0.0;
-  double json_hold_source_unix = 0.0;
 
   cv::Mat frame;
   cv::Mat upload_frame;
@@ -730,9 +739,6 @@ int main(int argc, char** argv) {
   std::vector<double> preprocess_ms;
   std::vector<double> copy_ms;
   std::vector<double> detect_ms;
-  std::vector<nvAprilTagsID_t> gui_hold_tags(kMaxTags);
-  uint32_t gui_hold_count = 0;
-  double gui_hold_until_ms = 0.0;
   if (args.gui) {
     cv::namedWindow("nvAprilTags GPU", cv::WINDOW_NORMAL);
     cv::resizeWindow("nvAprilTags GPU", args.out_w, args.out_h);
@@ -814,15 +820,6 @@ int main(int argc, char** argv) {
     detect_ms.push_back(t3 - t2);
     if (filtered_num_tags > 0) {
       frames_with_tags++;
-      gui_hold_count = std::min<uint32_t>(filtered_num_tags, kMaxTags);
-      for (uint32_t i = 0; i < gui_hold_count; ++i) {
-        gui_hold_tags[i] = filtered_tags[i];
-        json_hold_tags[i] = filtered_tags[i];
-      }
-      gui_hold_until_ms = t3 + std::max(0.0f, args.gui_hold_ms);
-      json_hold_count = gui_hold_count;
-      json_hold_until_ms = t3 + std::max(0.0f, args.output_hold_ms);
-      json_hold_source_unix = unix_time_s();
     }
     frames++;
 
@@ -831,33 +828,27 @@ int main(int argc, char** argv) {
     prev_frame_ms = now;
     fps_ema = fps_ema == 0.0 ? inst_fps : fps_ema * 0.9 + inst_fps * 0.1;
 
-    const bool output_using_hold =
-        (filtered_num_tags == 0 && json_hold_count > 0 && now_ms() < json_hold_until_ms);
-    const std::vector<nvAprilTagsID_t>& output_tags = output_using_hold ? json_hold_tags : filtered_tags;
-    const uint32_t output_count = output_using_hold ? json_hold_count : filtered_num_tags;
-    const double held_ms = output_using_hold ? std::max(0.0, unix_time_s() - json_hold_source_unix) * 1000.0 : 0.0;
-    const double source_timestamp = output_using_hold ? json_hold_source_unix : unix_time_s();
+    const double source_timestamp = unix_time_s();
     if (!args.output_json.empty() &&
         !write_snapshot_json(
             args.output_json,
             args,
-            output_tags,
-            output_count,
+            filtered_tags,
+            filtered_num_tags,
             fps_ema,
             t1 - t0,
             t1b - t1,
             t2 - t1b,
             t3 - t2,
-            output_using_hold,
-            held_ms,
+            false,
+            0.0,
             source_timestamp)) {
       std::cerr << "warning: failed to write output json: " << args.output_json << "\n";
     }
 
     if (args.gui) {
-      const bool using_hold = (filtered_num_tags == 0 && gui_hold_count > 0 && now_ms() < gui_hold_until_ms);
-      const std::vector<nvAprilTagsID_t>& draw_tags = using_hold ? gui_hold_tags : filtered_tags;
-      const uint32_t draw_count = using_hold ? gui_hold_count : std::min<uint32_t>(filtered_num_tags, kMaxTags);
+      const std::vector<nvAprilTagsID_t>& draw_tags = filtered_tags;
+      const uint32_t draw_count = std::min<uint32_t>(filtered_num_tags, kMaxTags);
       for (uint32_t i = 0; i < draw_count && i < kMaxTags; ++i) {
         std::vector<cv::Point> pts;
         pts.reserve(4);
@@ -866,15 +857,14 @@ int main(int argc, char** argv) {
               static_cast<int>(std::lround(draw_tags[i].corners[c].x)),
               static_cast<int>(std::lround(draw_tags[i].corners[c].y)));
         }
-        cv::Scalar line_color = using_hold ? cv::Scalar(0, 160, 255) : cv::Scalar(0, 255, 0);
-        cv::polylines(frame, pts, true, line_color, 2, cv::LINE_AA);
+        cv::polylines(frame, pts, true, cv::Scalar(0, 255, 0), 2, cv::LINE_AA);
         cv::Point2f center = tag_center(draw_tags[i]);
         cv::circle(frame, center, 4, cv::Scalar(0, 255, 255), cv::FILLED, cv::LINE_AA);
-        if (args.draw_axes && !using_hold) {
+        if (args.draw_axes) {
           draw_pose_axes(frame, args, draw_tags[i]);
         }
         std::ostringstream tag_text;
-        tag_text << (using_hold ? "hold id " : "id ") << draw_tags[i].id;
+        tag_text << "id " << draw_tags[i].id;
         if (args.pose && draw_tags[i].translation[2] > 1.0e-6f) {
           tag_text << std::fixed << std::setprecision(3)
                    << " X " << draw_tags[i].translation[0]
@@ -882,8 +872,7 @@ int main(int argc, char** argv) {
                    << " Z " << draw_tags[i].translation[2] << " m";
         }
         cv::putText(frame, tag_text.str(), pts[0] + cv::Point(4, -4),
-                    cv::FONT_HERSHEY_SIMPLEX, 0.5,
-                    using_hold ? cv::Scalar(0, 180, 255) : cv::Scalar(0, 255, 255),
+                    cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 255),
                     2, cv::LINE_AA);
       }
 
@@ -894,9 +883,6 @@ int main(int argc, char** argv) {
               << " tags=" << filtered_num_tags
               << " prep=" << args.preprocess
               << " detect=" << (t3 - t2) << "ms";
-      if (num_tags == 0 && gui_hold_count > 0 && now_ms() < gui_hold_until_ms) {
-        overlay << " hold=" << gui_hold_count;
-      }
       if (args.pose) {
         overlay << " pose=on";
       }

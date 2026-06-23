@@ -25,6 +25,17 @@ if [[ -n "${TNR_STRENGTH:-}" ]]; then
   EXTRA_ARGS+=(--tnr-strength "$TNR_STRENGTH")
 fi
 
+EXISTING_PIDS="$(pgrep -f '^./nv_gpu_apriltag_bench( |$)' || true)"
+if [[ -n "$EXISTING_PIDS" ]]; then
+  kill $EXISTING_PIDS >/dev/null 2>&1 || true
+  sleep 1
+  for pid in $EXISTING_PIDS; do
+    if kill -0 "$pid" >/dev/null 2>&1; then
+      kill -KILL "$pid" >/dev/null 2>&1 || true
+    fi
+  done
+fi
+
 printf 'nvidia\n' | sudo -S systemctl stop jetson-vision.service >/dev/null 2>&1 || true
 printf 'nvidia\n' | sudo -S jetson_clocks >/dev/null 2>&1 || true
 printf 'nvidia\n' | sudo -S systemctl restart nvargus-daemon >/dev/null 2>&1 || true
@@ -41,7 +52,7 @@ exec ./nv_gpu_apriltag_bench \
   --seconds 0 \
   --warmup 8 \
   --gui \
-  --preprocess "${PREPROCESS:-gray_blur_gamma07}" \
+  --preprocess "${PREPROCESS:-motion}" \
   --gui-hold-ms "${GUI_HOLD_MS:-0}" \
   --output-hold-ms "${OUTPUT_HOLD_MS:-0}" \
   --calib-json "$CALIB" \
