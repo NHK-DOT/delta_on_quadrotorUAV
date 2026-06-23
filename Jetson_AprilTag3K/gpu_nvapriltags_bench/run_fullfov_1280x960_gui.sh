@@ -42,8 +42,8 @@ exec ./nv_gpu_apriltag_bench \
   --warmup 8 \
   --gui \
   --preprocess "${PREPROCESS:-gray_blur_gamma07}" \
-  --gui-hold-ms "${GUI_HOLD_MS:-120}" \
-  --output-hold-ms "${OUTPUT_HOLD_MS:-80}" \
+  --gui-hold-ms "${GUI_HOLD_MS:-0}" \
+  --output-hold-ms "${OUTPUT_HOLD_MS:-0}" \
   --calib-json "$CALIB" \
   --output-json "$OUT_JSON" \
   "${EXTRA_ARGS[@]}"

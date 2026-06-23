@@ -95,8 +95,8 @@ not a CPU AprilTag fallback.
 The follow-up continuity fix keeps the same detector path and adds:
 
 - duplicate-ID filtering in each frame, keeping the lower-hamming/larger-area tag
-- bounded GUI last-good overlay, default `120 ms`
-- bounded JSON last-good output, default `80 ms`, with `is_held` and `held_ms`
+- optional bounded GUI last-good overlay, default disabled
+- optional bounded JSON last-good output, default disabled, with `is_held` and `held_ms`
 
 Latest verification:
 
@@ -113,3 +113,8 @@ latest JSON id=3
 ISP exposure/TNR/gain controls were exposed for testing, but they are not enabled
 by default because the tested combinations reduced recognition in the current
 scene.
+
+For moving-arm operation, hold must remain disabled. If detection only works
+when motion stops, treat it as an image-capture problem first: shorten exposure,
+increase lighting, and only then compensate with gain. Do not hide motion blur
+with stale tag positions.

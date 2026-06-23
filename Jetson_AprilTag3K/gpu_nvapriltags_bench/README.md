@@ -112,10 +112,10 @@ Current dark-scene verification on `192.168.1.80`:
 sensor frame-rate ceiling while substantially improving tag recognition. It is
 still the NVIDIA GPU detector, not a CPU fallback.
 
-The GUI also keeps a short last-good overlay (`--gui-hold-ms`, default 120 ms)
-so the box does not disappear on isolated missed frames. JSON output can reuse
-the last detection for a short bounded window (`--output-hold-ms`, default
-80 ms). Held detections are marked with:
+The GUI and JSON output do not hold stale detections by default because stale
+boxes visibly trail the tag during motion. If a bounded last-good hold is needed
+for a stationary calibration procedure, set `GUI_HOLD_MS` or `OUTPUT_HOLD_MS`
+explicitly. Held detections are marked with:
 
 ```json
 {
@@ -125,9 +125,8 @@ the last detection for a short bounded window (`--output-hold-ms`, default
 }
 ```
 
-This is a bounded continuity aid for the sampler, not a replacement for real
-detection. The default hold is intentionally short so fast motion does not drag
-old tag positions across the GUI. Set `OUTPUT_HOLD_MS=0` to disable it.
+This is a bounded continuity aid for stationary workflows, not a replacement for
+real detection. Keep `OUTPUT_HOLD_MS=0` for moving-arm operation.
 
 The bench also exposes Jetson ISP controls for experiments:
 
@@ -138,6 +137,27 @@ GAINRANGE="1 8" ISPDIGITALGAINRANGE="1 4" bash run_fullfov_1280x960_gui.sh
 
 In the current scene these ISP changes did not beat the base camera settings;
 the best measured result remained the base camera path plus `gray_blur_gamma07`.
+
+## Moving Tag Optimization
+
+If the tag is visible only when the arm stops, do not increase hold time. That
+usually means the detector input is suffering from motion blur or low edge
+contrast while the tag is moving. Keep hold disabled for moving-arm operation:
+
+```bash
+GUI_HOLD_MS=0 OUTPUT_HOLD_MS=0 bash run_fullfov_1280x960_gui.sh
+```
+
+The next things to test are shorter exposure and more light:
+
+```bash
+EXPOSURETIMERANGE="13000 12000000" GAINRANGE="1 10" ISPDIGITALGAINRANGE="1 4" \
+  GUI_HOLD_MS=0 OUTPUT_HOLD_MS=0 bash run_fullfov_1280x960_gui.sh
+```
+
+If the image becomes too dark, add physical lighting before increasing exposure
+again. Longer exposure makes the tag easier to see when stationary but worse
+during motion.
 
 ## Calibration Caveat
 
