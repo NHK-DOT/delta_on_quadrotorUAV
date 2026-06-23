@@ -2,7 +2,7 @@
 # -*- coding: utf-8 -*-
 """Python 3.6 Jetson AprilTag + 8BitDo workspace sampler.
 
-This is the field entrypoint for the Jetson Nano at 192.168.1.80. It combines
+This is the field entrypoint for the Jetson Xavier NX at 192.168.1.80. It combines
 low-speed manual 8BitDo control, servo feedback, and the 3K fisheye AprilTag
 JSON stream. Press B to record one sample for workspace model fitting.
 """

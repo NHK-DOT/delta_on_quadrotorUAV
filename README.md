@@ -8,10 +8,11 @@ hand-eye vision experiments, and the current real-machine Delta arm controller.
 License: GNU GPL v3.0. See [LICENSE](LICENSE). Upstream MIT notices are kept in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-Current mainline: `Delta_Gcode_Servo/real_machine_test/gamepad_controller.py`.
-Use that controller for real-machine work. The older `bt_8bitdo_min/` package
-is kept as a minimal historical/auxiliary gamepad test package and is not the
-control mainline.
+Current Jetson field mainline:
+`Delta_Gcode_Servo/real_machine_test/jetson_py36/run_sampler_py36_jetson.sh`.
+It runs on the Jetson Xavier NX at `192.168.1.80` and combines 3K fisheye
+AprilTag detection, 8BitDo low-speed manual motion, servo feedback preflight,
+and workspace sampling.
 
 ## Project Context
 
@@ -29,11 +30,12 @@ changes the modeling, hardware layout, control code, sensors, and deployment
 pipeline, but it still acknowledges that upstream project as the original idea
 source.
 
-The 8BitDo package exists because the Xbox Series wireless controller was not
-stable on the Ubuntu 18.04 Nano Bluetooth stack used here. In local testing,
-that controller repeatedly bounced between connected and disconnected states.
-The workaround was to use an 8BitDo Ultimate 2 Wireless controller and read the
-Linux input event device directly, without relying on pygame or SDL mappings.
+The 8BitDo compatibility files exist because the Xbox Series wireless
+controller was not stable on the Jetson Xavier NX Bluetooth stack used here. In
+local testing, that controller repeatedly bounced between connected and
+disconnected states. The workaround is to use an 8BitDo Ultimate 2 Wireless
+controller and read the Linux input event device directly, without relying on
+pygame or SDL mappings.
 
 ## Arm Photos and Models
 
@@ -60,41 +62,37 @@ are intended for iteration on the physical arm:
 - Check hole diameters, bearing fits, servo clearance, and carbon-tube linkage
   dimensions against the real hardware before printing or machining.
 
-## Current Control Mainline
+## Current Jetson Sampling Mainline
 
-The actively maintained real-machine path is:
+The actively maintained field path for the current hardware is:
 
 ```text
-Delta_Gcode_Servo/real_machine_test/gamepad_controller.py
-  -> feedback-based current XYZ/servo state
-  -> manual target XYZ or recorded A/B point playback
-  -> Delta IK
-  -> raw LX bus-servo mapping
+Jetson Xavier NX 192.168.1.80
+  -> 3K fisheye full-FOV downsample AprilTag JSON
+  -> Delta_Gcode_Servo/real_machine_test/jetson_py36/run_sampler_py36_jetson.sh
+  -> read-only preflight: gamepad, AprilTag, servo feedback, home_raw
+  -> 8BitDo low-speed manual target XYZ
+  -> Delta IK/FK and raw LX bus-servo mapping
   -> Hiwonder xArm 1.6 servo driver board
+  -> press B to sample AprilTag XYZ + servo raw for model fitting
 ```
 
-The same folder now also contains a read-only vision preview:
+Offline model fitting and workspace scanning are handled by:
 
 ```text
-Delta_Gcode_Servo/real_machine_test/vision_tool_state.py
-  -> AprilTag_Vision/myAprilTag/output/apriltag_latest.json
-  -> Dual_Camera_HandEye/output/calibration_result.json
-  -> base_T_tool estimate
-  -> Delta IK/raw preview
+Delta_Gcode_Servo/real_machine_test/workspace_model_tools.py
 ```
 
-The preview treats the base camera AprilTag estimate as an upper-layer mapping
-to the tool pose. It does not turn image pixels directly into servo angles and
-does not send motion commands. In `gamepad_controller.py`, the future
-vision-driven motion call is present as commented code until the base-camera XYZ
-axes and scale are confirmed on hardware.
+The older `Delta_Gcode_Servo/real_machine_test/gamepad_controller.py` remains in
+the repository as the previous local-controller implementation, but it is not
+the preferred path for the `192.168.1.80` Jetson Xavier NX sampling workflow.
 
 ## Hardware Control Path
 
 ```text
 Gamepad / operator input
-  -> Delta_Gcode_Servo/real_machine_test/gamepad_controller.py
-  -> realtime delta-arm controller
+  -> Jetson Xavier NX 192.168.1.80
+  -> jetson_py36 sampler
   -> XYZ target and inverse kinematics
   -> raw LX bus-servo position commands
   -> USB serial adapter
@@ -102,10 +100,10 @@ Gamepad / operator input
   -> physical LX bus servos
 ```
 
-The controller can move real servos. For that reason, the package keeps
-read-only test entrypoints separate from the real-machine entrypoint. Always run
-the mapping and serial preflight checks before opening the writable control
-loop.
+The sampler can move real servos after the typed `YES` confirmation. The
+preflight path is read-only and checks 8BitDo input, AprilTag JSON freshness,
+servo feedback, and whether servo 1/2/3 are near the configured initial
+`home_raw` position.
 
 ## Dual-Camera Hand-Eye Layout
 
@@ -144,11 +142,12 @@ wrench, wrench-public-negative, and snow-king models.
 
 ## Main Folders
 
-- `Delta_Gcode_Servo/`: current real-machine mainline, G-code tools, Delta IK,
-  raw servo mapping, and the base-camera-to-tool preview.
-- `bt_8bitdo_min/`: older minimal 8BitDo Bluetooth gamepad package. It remains
-  useful for input and serial experiments, but it is not the active control
-  mainline.
+- `Delta_Gcode_Servo/`: current Jetson sampling entrypoint, workspace fitting
+  tools, G-code tools, Delta IK, raw servo mapping, and base-camera-to-tool
+  helpers.
+- `bt_8bitdo_min/`: minimal compatibility dependency for the Jetson Xavier NX
+  sampler. It now keeps only the 8BitDo evdev reader, bus-servo driver,
+  gamepad config, and Bluetooth/input permission installer.
 - `Jetson_Vision_Export/`: Git LFS tracked Jetson vision deployment archive,
   checksum, installer, and deployment README for the TensorRT/Orbbec vision
   service package.
@@ -163,120 +162,50 @@ wrench, wrench-public-negative, and snow-king models.
 - `AprilTag_Vision/`: AprilTag camera detection tools.
 - `Bus_Servo/`: bus-servo examples and utilities.
 
-## Legacy 8BitDo Gamepad Package
+## Jetson Xavier NX Field Steps
 
-Use `bt_8bitdo_min` only for older Nano/8BitDo input and serial experiments:
+Deploy the current package to `192.168.1.80`:
 
-```bash
-cd ~/Desktop/bt_8bitdo_min
+```powershell
+cd C:\Users\hanjuncheng\Desktop\78arm
+python Delta_Gcode_Servo\real_machine_test\jetson_py36\deploy_to_jetson.py --password nvidia
 ```
 
-If the package is inside this repo on the Nano, use:
+Install 8BitDo input permissions on the Jetson if needed:
 
 ```bash
+ssh nvidia@192.168.1.80
 cd ~/Desktop/78arm/bt_8bitdo_min
-```
-
-The package is split into two historical paths:
-
-- Test path: reads the gamepad only. It does not open the serial port and cannot
-  move servos.
-- Legacy real-machine path: opens the servo serial port, runs kinematics, and
-  can send commands to the servo driver board. Do not use it as the current
-  control mainline.
-
-## Legacy 8BitDo Test Steps
-
-1. Install runtime tools and udev rules:
-
-```bash
 bash deploy/install_ubuntu18.sh
 ```
 
-Log out and back in after the first install so the `input` group takes effect.
-
-2. If the install script says `GAMEPAD_MAC is empty`, pair manually once:
+Run the read-only preflight:
 
 ```bash
-bluetoothctl
-power on
-agent on
-default-agent
-scan on
-pair AA:BB:CC:DD:EE:FF
-trust AA:BB:CC:DD:EE:FF
-connect AA:BB:CC:DD:EE:FF
-quit
+cd ~/Desktop/78arm/Delta_Gcode_Servo/real_machine_test/jetson_py36
+python3 jetson_workspace_preflight.py --port /dev/ttyUSB0 --hand-tag-id 3
 ```
 
-Then write the MAC to `config/bluetooth_mac.conf`.
-
-3. Run a read-only one-shot capture:
+Run the sampler:
 
 ```bash
-bash deploy/run_log_test.sh 30
+HAND_TAG_ID=3 bash run_sampler_py36_jetson.sh
 ```
 
-During the 30 seconds, move the D-pad in all four directions, move the right
-stick Y axis up/down, and press `A/B/X/Y/LB/RB` once. This overwrites:
+The sampler writes `samples.csv` and `samples.jsonl` under:
 
-- `logs/gamepad_once.log`
-- `logs/gamepad_once.json`
+```text
+Delta_Gcode_Servo/real_machine_test/jetson_py36/samples/YYYYMMDD_HHMMSS/
+```
 
-4. Check whether the capture is complete for the legacy 8BitDo control package:
+Fit the workspace model after sampling:
 
 ```bash
-bash deploy/run_mapping_check.sh
+python3 Delta_Gcode_Servo/real_machine_test/workspace_model_tools.py fit \
+  Delta_Gcode_Servo/real_machine_test/jetson_py36/samples/YYYYMMDD_HHMMSS/samples.jsonl \
+  --output-dir Delta_Gcode_Servo/real_machine_test/jetson_py36/samples/YYYYMMDD_HHMMSS/model \
+  --compute-workspace
 ```
-
-All motion axes and action buttons should show `OK`. If any action button says
-`MISSING`, repeat the one-shot capture and press that button.
-
-5. Optional live read-only display:
-
-```bash
-bash deploy/run_show_state.sh
-```
-
-This shows normalized axes and active logical actions without opening the servo
-serial port. Watch `CTRL_X/CTRL_Y/CTRL_Z`; these are the values used by the
-real-machine controller.
-
-6. Check the servo driver board serial link without moving servos:
-
-```bash
-bash deploy/run_serial_check.sh --port /dev/ttyUSB0
-```
-
-This reads servo 1/2/3 feedback and battery voltage. It does not send a move
-command.
-
-## Legacy 8BitDo Real-Machine Control
-
-The current real-machine mainline is
-`Delta_Gcode_Servo/real_machine_test/gamepad_controller.py`. The command below
-belongs to the older 8BitDo package and can move hardware, so use it only when
-explicitly testing that legacy path after mapping and serial preflight are
-complete:
-
-```bash
-bash deploy/run_control_bt.sh --port /dev/ttyUSB0
-```
-
-This entrypoint can move the machine. The default mapping is:
-
-- D-pad X/Y -> arm X/Y
-- right stick Y -> arm Z
-- `A` -> quit
-- `B` -> record current point
-- `X` -> safe scan mode
-- `Y` -> sensor frame mode
-- `LB/RB` -> tooling servo close/open
-
-The gamepad event device is not fixed to `event8`. The code finds the current
-`/dev/input/eventX` automatically by name, bus, vendor, and product. Leave
-`config/gamepad_8bitdo_bt.json` `device.device_path` empty unless you are
-debugging a specific event device.
 
 ## License and Attribution
 

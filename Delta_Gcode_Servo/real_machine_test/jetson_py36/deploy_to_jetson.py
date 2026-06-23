@@ -27,12 +27,11 @@ COPY_ITEMS = [
     Path("Delta_Gcode_Servo/real_machine_test/APRILTAG_GAMEPAD_WORKSPACE_SAMPLER_README.md"),
     Path("Delta_Gcode_Servo/real_machine_test/run_apriltag_workspace_sampler_jetson.sh"),
     Path("Delta_Gcode_Servo/delta_gcode_servo"),
-    Path("bt_8bitdo_min/src"),
+    Path("bt_8bitdo_min/src/evdev_gamepad.py"),
+    Path("bt_8bitdo_min/src/servo_driver.py"),
     Path("bt_8bitdo_min/config"),
-    Path("bt_8bitdo_min/deploy"),
-    Path("bt_8bitdo_min/docs"),
+    Path("bt_8bitdo_min/deploy/install_ubuntu18.sh"),
     Path("bt_8bitdo_min/README.md"),
-    Path("bt_8bitdo_min/requirements.txt"),
     Path("lx225_tool_demo/config/lx225_tool.demo.toml"),
     Path("Dual_Camera_HandEye/output/calibration_result.json"),
     Path("Dual_Camera_HandEye/src/dual_handeye"),
@@ -47,6 +46,28 @@ SKIP_DIR_NAMES = {
     "apriltag_workspace_samples",
     "workspace_model_output",
 }
+
+
+REMOTE_REMOVE_ITEMS = [
+    "bt_8bitdo_min/deploy/run_control_bt.sh",
+    "bt_8bitdo_min/deploy/run_log_test.sh",
+    "bt_8bitdo_min/deploy/run_mapping_check.sh",
+    "bt_8bitdo_min/deploy/run_serial_check.sh",
+    "bt_8bitdo_min/deploy/run_serial_move_check.sh",
+    "bt_8bitdo_min/deploy/run_show_state.sh",
+    "bt_8bitdo_min/docs",
+    "bt_8bitdo_min/src/check_gamepad_mapping.py",
+    "bt_8bitdo_min/src/check_serial_readonly.py",
+    "bt_8bitdo_min/src/config.py",
+    "bt_8bitdo_min/src/gamepad_controller.py",
+    "bt_8bitdo_min/src/joystick_linux.py",
+    "bt_8bitdo_min/src/kinematics.py",
+    "bt_8bitdo_min/src/move_serial_smoke.py",
+    "bt_8bitdo_min/src/run_real_machine_bt.py",
+    "bt_8bitdo_min/src/servo_mapping.py",
+    "bt_8bitdo_min/src/show_control_state.py",
+    "bt_8bitdo_min/src/test_gamepad_once.py",
+]
 
 
 def should_skip(path: Path) -> bool:
@@ -117,6 +138,10 @@ def exec_checked(client, command):
     return rc, out, err
 
 
+def shell_quote(text):
+    return "'" + str(text).replace("'", "'\"'\"'") + "'"
+
+
 def deploy(args):
     password = args.password or os.environ.get("JETSON_PASSWORD")
     if not password:
@@ -154,6 +179,21 @@ def deploy(args):
             print("copied files: %d" % total)
         finally:
             sftp.close()
+
+        remove_targets = " ".join(
+            shell_quote(posixpath.join(args.remote_root, item))
+            for item in REMOTE_REMOVE_ITEMS
+        )
+        if remove_targets:
+            rc, out, err = exec_checked(client, "rm -rf -- %s" % remove_targets)
+            if out:
+                print(out.rstrip())
+            if err:
+                print(err.rstrip(), file=sys.stderr)
+            if rc != 0:
+                print("remote cleanup failed rc=%d" % rc, file=sys.stderr)
+                return rc
+            print("remote old 8BitDo files removed")
 
         cmd = (
             "cd {root}/Delta_Gcode_Servo/real_machine_test/jetson_py36 && "

@@ -128,7 +128,7 @@ python3 apriltag_gamepad_workspace_sampler.py \
 ## 现场采样步骤
 
 1. 确认机械臂在最上面安全位置附近，周围没有障碍。
-2. 确认 8BitDo 已蓝牙连接，必要时先跑 `bt_8bitdo_min/deploy/run_show_state.sh`。
+2. 确认 8BitDo 已蓝牙连接；必要时先跑 `bt_8bitdo_min/deploy/install_ubuntu18.sh` 安装蓝牙、pyserial 和 input 权限规则，然后重新登录。
 3. 启动脚本。
 4. 脚本会先读舵机反馈。如果不在准备位，会要求输入 `HOME` 才慢速回位。
 5. 用 D-pad 和右摇杆低速移动机械臂。

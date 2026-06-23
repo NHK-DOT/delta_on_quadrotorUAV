@@ -1,6 +1,6 @@
-# Jetson Python 3.6 AprilTag 工作空间采样包
+# Jetson Xavier NX Python 3.6 AprilTag 工作空间采样包
 
-这个目录是给 `192.168.1.80` 那台 Jetson 用的现场包。那台机器系统 Python 是 `3.6.9`，不能直接跑主线里 Python 3.11 风格的控制脚本，所以这里保留一套 Python 3.6 兼容入口。
+这个目录是给 `192.168.1.80` 那台 Jetson Xavier NX 用的现场包。那台机器系统 Python 是 `3.6.9`，不能直接跑主线里 Python 3.11 风格的控制脚本，所以这里保留一套 Python 3.6 兼容入口。
 
 目标是把三件事放在同一个现场流程里：
 
