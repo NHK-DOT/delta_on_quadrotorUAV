@@ -351,7 +351,18 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--sensor-startup-timeout", type=float, default=20.0)
     parser.add_argument("--sensor-print-every", type=float, default=2.0)
     parser.add_argument("--sensor-status-hz", type=float, default=1.0)
+    parser.add_argument(
+        "--label-sequence",
+        default="",
+        help="Comma-separated labels to sample in order; still read-only and waits for Enter before each label.",
+    )
+    parser.add_argument("--samples-per-label", type=int, default=1)
+    parser.add_argument("--settle-sec", type=float, default=0.0, help="Delay after Enter before sampling each point")
     return parser.parse_args(argv)
+
+
+def parse_label_sequence(text: str) -> list[str]:
+    return [item.strip() for item in text.replace("\n", ",").split(",") if item.strip()]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -401,6 +412,42 @@ def main(argv: list[str] | None = None) -> int:
         print(f"JSONL 输出: {jsonl_path}")
         print("每次手动摆到一个点后输入标签，例如 top_home、bottom_safe、left_mid。")
         print("输入 q 退出。\n")
+
+        label_sequence = parse_label_sequence(args.label_sequence)
+        samples_per_label = max(1, int(args.samples_per_label))
+        if label_sequence:
+            print("Queued label mode: move the arm manually to each named point, then press Enter.")
+            print("No motion commands will be sent by this script.")
+            for label in label_sequence:
+                text = input(f"{label}: press Enter to sample, or q to stop > ").strip()
+                if text.lower() in {"q", "quit", "exit"}:
+                    break
+                if args.settle_sec > 0:
+                    time.sleep(args.settle_sec)
+                for index in range(samples_per_label):
+                    sample_label = label if samples_per_label == 1 else f"{label}_{index + 1:02d}"
+                    try:
+                        sample = sample_once(
+                            label=sample_label,
+                            geometry=geometry,
+                            port=args.port,
+                            servo_ids=servo_ids,
+                            timeout=args.timeout,
+                            vision_config=vision_config,
+                            csv_path=csv_path,
+                            jsonl_path=jsonl_path,
+                        )
+                    except Exception as exc:
+                        print(f"sample failed for {sample_label}: {exc}")
+                        continue
+
+                    raw = sample["servo_raw"]
+                    xyz = sample["vision"].get("tool_position_mm")
+                    warnings = sample["vision"].get("warnings") or []
+                    print(f"sampled {sample_label}: raw={raw}, xyz_mm={xyz}")
+                    for warning in warnings:
+                        print(f"warning: {warning}")
+            return 0
 
         while True:
             label = input("采样标签 > ").strip()

@@ -35,16 +35,33 @@ def detection_to_transform(detection: dict[str, Any]) -> Transform:
     if not isinstance(position, dict):
         raise ValueError("detection has no position_m object")
 
+    translation = [
+        float(position.get("x", 0.0)),
+        float(position.get("y", 0.0)),
+        float(position.get("z", 0.0)),
+    ]
+
+    rotation_matrix = detection.get("rotation_matrix")
+    if isinstance(rotation_matrix, list):
+        matrix = np.asarray(rotation_matrix, dtype=float)
+        if matrix.shape == (3, 3):
+            return Transform.from_rt(matrix, translation)
+
+    orientation_matrix = detection.get("orientation_matrix_column_major")
+    if isinstance(orientation_matrix, list) and len(orientation_matrix) == 9:
+        matrix = np.asarray(orientation_matrix, dtype=float).reshape((3, 3), order="F")
+        return Transform.from_rt(matrix, translation)
+
+    quaternion = detection.get("quaternion_xyzw")
+    if isinstance(quaternion, list) and len(quaternion) == 4:
+        return Transform.from_quaternion_xyzw(translation, quaternion)
+
     orientation = detection.get("orientation_deg")
     if not isinstance(orientation, dict):
         orientation = {}
 
     return Transform.from_rpy_deg(
-        translation=[
-            float(position.get("x", 0.0)),
-            float(position.get("y", 0.0)),
-            float(position.get("z", 0.0)),
-        ],
+        translation=translation,
         rpy_deg=[
             float(orientation.get("roll", 0.0)),
             float(orientation.get("pitch", 0.0)),

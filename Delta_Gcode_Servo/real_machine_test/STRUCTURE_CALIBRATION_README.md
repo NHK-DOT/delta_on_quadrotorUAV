@@ -71,6 +71,20 @@ python structure_calibration_sampler.py --port COM15 --apriltag-camera-index 1
 python structure_calibration_sampler.py --port COM15 --no-autostart-sensors
 ```
 
+如果 AprilTag 由 Jetson 3K C++ 服务和同步桥更新本机快照，可以保留只读采样脚本，不再启动本机 AprilTag 子进程：
+
+```powershell
+python structure_calibration_sampler.py --port COM15 --no-autostart-sensors --hand-tag-id 3
+```
+
+如果只想减少手打标签，可以用标签队列模式。脚本仍然不会发送运动命令；每个点由你手动摆好后按回车采样：
+
+```powershell
+python structure_calibration_sampler.py --port COM15 --no-autostart-sensors --hand-tag-id 3 `
+  --label-sequence top_home,bottom_safe,center_mid,left_mid,right_mid,front_mid,back_mid,left_front_mid,right_front_mid,left_back_mid,right_back_mid `
+  --samples-per-label 3 --settle-sec 0.3
+```
+
 ## 退出和子进程清理
 
 推荐用以下任一方式退出：
