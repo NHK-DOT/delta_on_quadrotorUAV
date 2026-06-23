@@ -34,6 +34,8 @@ struct Args {
   int seconds = 20;
   int warmup = 20;
   bool gui = false;
+  float gui_scale = 1.0f;
+  int gui_every = 1;
   bool draw_axes = false;
   bool pose = false;
   std::string preprocess = "raw";
@@ -87,6 +89,8 @@ void usage(const char* argv0) {
       << "  --seconds N              measured run duration\n"
       << "  --warmup N               warmup frames\n"
       << "  --gui                    show local OpenCV GUI until q/Esc or seconds ends\n"
+      << "  --gui-scale N            GUI display scale, e.g. 0.75, detector resolution is unchanged\n"
+      << "  --gui-every N            draw GUI every N detector frames, JSON still updates every frame\n"
       << "  --draw-axes              draw 3D tag orientation axes in GUI\n"
       << "  --preprocess MODE        detector input preprocess:\n"
       << "                            raw|equalize|clahe|gamma06|adaptive|\n"
@@ -251,6 +255,12 @@ bool parse_args(int argc, char** argv, Args* args) {
       if (!v || !parse_int(v, &args->warmup)) return false;
     } else if (key == "--gui") {
       args->gui = true;
+    } else if (key == "--gui-scale") {
+      const char* v = need_value("--gui-scale");
+      if (!v || !parse_float(v, &args->gui_scale) || args->gui_scale <= 0.0f) return false;
+    } else if (key == "--gui-every") {
+      const char* v = need_value("--gui-every");
+      if (!v || !parse_int(v, &args->gui_every) || args->gui_every <= 0) return false;
     } else if (key == "--draw-axes") {
       args->draw_axes = true;
     } else if (key == "--preprocess") {
@@ -741,7 +751,10 @@ int main(int argc, char** argv) {
   std::vector<double> detect_ms;
   if (args.gui) {
     cv::namedWindow("nvAprilTags GPU", cv::WINDOW_NORMAL);
-    cv::resizeWindow("nvAprilTags GPU", args.out_w, args.out_h);
+    cv::resizeWindow(
+        "nvAprilTags GPU",
+        std::max(1, static_cast<int>(std::lround(args.out_w * args.gui_scale))),
+        std::max(1, static_cast<int>(std::lround(args.out_h * args.gui_scale))));
   }
   int frames = 0;
   int frames_with_tags = 0;
@@ -846,7 +859,7 @@ int main(int argc, char** argv) {
       std::cerr << "warning: failed to write output json: " << args.output_json << "\n";
     }
 
-    if (args.gui) {
+    if (args.gui && (args.gui_every <= 1 || (frames % args.gui_every) == 0)) {
       const std::vector<nvAprilTagsID_t>& draw_tags = filtered_tags;
       const uint32_t draw_count = std::min<uint32_t>(filtered_num_tags, kMaxTags);
       for (uint32_t i = 0; i < draw_count && i < kMaxTags; ++i) {
@@ -890,7 +903,13 @@ int main(int argc, char** argv) {
                     cv::Scalar(0, 0, 0), cv::FILLED);
       cv::putText(frame, overlay.str(), cv::Point(12, 24),
                   cv::FONT_HERSHEY_SIMPLEX, 0.65, cv::Scalar(255, 255, 255), 2, cv::LINE_AA);
-      cv::imshow("nvAprilTags GPU", frame);
+      if (std::fabs(args.gui_scale - 1.0f) > 1.0e-3f) {
+        cv::Mat display_frame;
+        cv::resize(frame, display_frame, cv::Size(), args.gui_scale, args.gui_scale, cv::INTER_AREA);
+        cv::imshow("nvAprilTags GPU", display_frame);
+      } else {
+        cv::imshow("nvAprilTags GPU", frame);
+      }
       int key = cv::waitKey(1) & 0xff;
       if (key == 27 || key == 'q') break;
     }

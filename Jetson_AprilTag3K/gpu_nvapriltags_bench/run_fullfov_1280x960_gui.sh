@@ -5,6 +5,9 @@ ROOT=/home/nvidia/Desktop/yolo_fisheye_calibration_jetson
 BENCH="$ROOT/nv_gpu_apriltags_bench"
 CALIB="${CALIB:-$ROOT/calibration/usable_3k_downsample_1280x960/apriltag_fullfov_1280x960_intrinsics.json}"
 OUT_JSON="${OUT_JSON:-$ROOT/output/apriltag_latest_jetson.json}"
+OUT_SIZE="${OUT_SIZE:-1280x960}"
+GUI_SCALE="${GUI_SCALE:-1.0}"
+GUI_EVERY="${GUI_EVERY:-1}"
 EXTRA_ARGS=()
 if [[ -n "${EXPOSURE_COMPENSATION:-}" ]]; then
   EXTRA_ARGS+=(--exposure-compensation "$EXPOSURE_COMPENSATION")
@@ -48,11 +51,13 @@ exec ./nv_gpu_apriltag_bench \
   --mode 0 \
   --sensor 3264x2464 \
   --sensor-fps 21 \
-  --out 1280x960 \
+  --out "$OUT_SIZE" \
   --seconds 0 \
   --warmup 8 \
   --gui \
-  --preprocess "${PREPROCESS:-motion}" \
+  --gui-scale "$GUI_SCALE" \
+  --gui-every "$GUI_EVERY" \
+  --preprocess "${PREPROCESS:-gray_blur_gamma07}" \
   --gui-hold-ms "${GUI_HOLD_MS:-0}" \
   --output-hold-ms "${OUTPUT_HOLD_MS:-0}" \
   --calib-json "$CALIB" \

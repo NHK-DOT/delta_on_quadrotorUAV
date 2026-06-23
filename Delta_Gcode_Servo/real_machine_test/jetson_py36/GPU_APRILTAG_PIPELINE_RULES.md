@@ -120,10 +120,10 @@ For moving-arm operation, GUI and JSON hold are disabled, not merely shortened.
 The current binary keeps `--gui-hold-ms` and `--output-hold-ms` as compatibility
 arguments, but it writes and draws only current-frame detections.
 
-If detection only works when motion stops, treat it as an image-capture problem
-first: shorten exposure, disable temporal noise reduction, increase lighting,
-and only then compensate with gain. Do not hide motion blur with stale tag
-positions.
+If detection only works when motion stops, do not assume lighting is the only
+cause. Benchmark the detector input distribution first: preprocessing,
+resolution, ISP settings, and whether the tag still has enough pixels after
+downsampling. Do not hide misses with stale tag positions.
 
 The moving-arm launch path is:
 
@@ -134,15 +134,46 @@ The moving-arm launch path is:
 Default moving-arm settings:
 
 ```text
-preprocess: motion
-path: BGR frame -> grayscale -> unsharp mask -> gamma 0.70 -> BGRA upload -> nvAprilTagsDetect
-TNR: off
-exposuretimerange: 34000 8000000 ns
-gainrange: 1 12
-ispdigitalgainrange: 1 4
+preprocess: gray_blur_gamma07
+path: BGR frame -> grayscale -> 3x3 Gaussian blur -> gamma 0.70 -> BGRA upload -> nvAprilTagsDetect
+TNR: default ISP
+exposuretimerange: default ISP
+gainrange: default ISP
+ispdigitalgainrange: default ISP
 GUI/JSON hold: disabled
 ```
 
 The current Jetson Xavier NX `nvarguscamerasrc` rejects
 `exposuretimerange="13000 8000000"` even though the sensor mode log lists
 13000 ns as the minimum. Use 34000 ns or higher for the lower bound.
+
+## 2026-06-24 Motion-Mode Correction
+
+The first motion-mode change used `motion` preprocessing, short exposure, and
+TNR off. That was not supported by same-scene A/B results. On `192.168.1.80`:
+
+```text
+1280x960 gray_blur_gamma07, default ISP: 31 / 168 frames, 20.92 fps
+1280x960 motion + 8 ms exposure + TNR off: 0 / 168 frames, 20.92 fps
+1280x960 motion, default ISP: 0 / 168 frames, 20.94 fps
+1280x960 gray_blur_gamma07 + 8 ms exposure + TNR off: 0 / 168 frames, 20.93 fps
+960x724 gray_blur_gamma07, default ISP: 0 / 168 frames, 20.96 fps
+1600x1208 gray_blur_gamma07, default ISP: 50 / 168 frames, 20.89 fps
+```
+
+Conclusion: keep GPU/no-hold, restore `gray_blur_gamma07` as the default input
+preprocess, and use the higher-resolution `run_robust_1600x1208_gui.sh` path
+when 1280x960 does not provide enough tag pixels. Do not make short exposure or
+unsharp preprocessing the default without fresh A/B evidence.
+
+The current robust GUI path runs:
+
+```text
+3264x2464@21 -> 1600x1208 -> gray_blur_gamma07 -> GPU nvAprilTagsDetect
+GUI_SCALE=0.75
+GUI_EVERY=2
+```
+
+`GUI_EVERY=2` reduces display overhead only. Detection and JSON output still run
+on every processed detector frame. Last live check on `192.168.1.80` reported
+about 19.2 fps, tag id 3, and `is_held=false`.
