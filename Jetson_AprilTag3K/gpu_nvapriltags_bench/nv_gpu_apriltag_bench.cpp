@@ -33,6 +33,7 @@ struct Args {
   bool gui = false;
   bool draw_axes = false;
   bool pose = false;
+  std::string preprocess = "raw";
   float hfov_deg = 0.0f;
   float fx = 0.0f;
   float fy = 0.0f;
@@ -75,6 +76,11 @@ void usage(const char* argv0) {
       << "  --warmup N               warmup frames\n"
       << "  --gui                    show local OpenCV GUI until q/Esc or seconds ends\n"
       << "  --draw-axes              draw 3D tag orientation axes in GUI\n"
+      << "  --preprocess MODE        detector input preprocess:\n"
+      << "                            raw|equalize|clahe|gamma06|adaptive|\n"
+      << "                            color_gamma06|color_gamma045|gain|y_equalize|y_clahe|\n"
+      << "                            gray_blur_gamma045|gray_blur_gamma05|gray_blur_gamma06|gray_blur_gamma07|\n"
+      << "                            gray_median_gamma06|gray_sharp_gamma06\n"
       << "  --hfov-deg N             approximate pinhole intrinsics from horizontal FOV\n"
       << "  --calib-json PATH        load and scale camera_matrix from calibration JSON\n"
       << "  --pose fx,fy,cx,cy,tag   enable pose output with intrinsics and tag size\n"
@@ -212,6 +218,29 @@ bool parse_args(int argc, char** argv, Args* args) {
       args->gui = true;
     } else if (key == "--draw-axes") {
       args->draw_axes = true;
+    } else if (key == "--preprocess") {
+      const char* v = need_value("--preprocess");
+      if (!v) return false;
+      args->preprocess = v;
+      if (args->preprocess != "raw" &&
+          args->preprocess != "equalize" &&
+          args->preprocess != "clahe" &&
+          args->preprocess != "gamma06" &&
+          args->preprocess != "adaptive" &&
+          args->preprocess != "color_gamma06" &&
+          args->preprocess != "color_gamma045" &&
+          args->preprocess != "gain" &&
+          args->preprocess != "y_equalize" &&
+          args->preprocess != "y_clahe" &&
+          args->preprocess != "gray_blur_gamma045" &&
+          args->preprocess != "gray_blur_gamma05" &&
+          args->preprocess != "gray_blur_gamma06" &&
+          args->preprocess != "gray_blur_gamma07" &&
+          args->preprocess != "gray_median_gamma06" &&
+          args->preprocess != "gray_sharp_gamma06") {
+        std::cerr << "unknown preprocess mode: " << args->preprocess << "\n";
+        return false;
+      }
     } else if (key == "--hfov-deg") {
       const char* v = need_value("--hfov-deg");
       if (!v || !parse_float(v, &args->hfov_deg)) return false;
@@ -286,6 +315,26 @@ double unix_time_s() {
   return std::chrono::duration<double>(clock::now().time_since_epoch()).count();
 }
 
+std::string pixel_mode_for_preprocess(const std::string& preprocess) {
+  if (preprocess == "raw") return "BGR_to_BGRA_cuda";
+  if (preprocess == "equalize") return "BGR_gray_equalizeHist_to_BGRA_cuda";
+  if (preprocess == "clahe") return "BGR_gray_CLAHE_to_BGRA_cuda";
+  if (preprocess == "gamma06") return "BGR_gray_gamma0.60_to_BGRA_cuda";
+  if (preprocess == "adaptive") return "BGR_gray_adaptiveThreshold_to_BGRA_cuda";
+  if (preprocess == "color_gamma06") return "BGR_color_gamma0.60_to_BGRA_cuda";
+  if (preprocess == "color_gamma045") return "BGR_color_gamma0.45_to_BGRA_cuda";
+  if (preprocess == "gain") return "BGR_alpha1.65_beta18_to_BGRA_cuda";
+  if (preprocess == "y_equalize") return "BGR_YCrCb_Y_equalizeHist_to_BGRA_cuda";
+  if (preprocess == "y_clahe") return "BGR_YCrCb_Y_CLAHE_to_BGRA_cuda";
+  if (preprocess == "gray_blur_gamma045") return "BGR_gray_blur_gamma0.45_to_BGRA_cuda";
+  if (preprocess == "gray_blur_gamma05") return "BGR_gray_blur_gamma0.50_to_BGRA_cuda";
+  if (preprocess == "gray_blur_gamma06") return "BGR_gray_blur_gamma0.60_to_BGRA_cuda";
+  if (preprocess == "gray_blur_gamma07") return "BGR_gray_blur_gamma0.70_to_BGRA_cuda";
+  if (preprocess == "gray_median_gamma06") return "BGR_gray_median_gamma0.60_to_BGRA_cuda";
+  if (preprocess == "gray_sharp_gamma06") return "BGR_gray_sharpen_gamma0.60_to_BGRA_cuda";
+  return "BGR_to_BGRA_cuda";
+}
+
 bool write_snapshot_json(
     const std::string& path,
     const Args& args,
@@ -293,7 +342,7 @@ bool write_snapshot_json(
     uint32_t num_tags,
     double fps_ema,
     double read_ms,
-    double convert_ms,
+    double preprocess_ms,
     double copy_ms,
     double detect_ms) {
   if (path.empty()) return true;
@@ -313,7 +362,8 @@ bool write_snapshot_json(
   out << "    \"sensor_fps_request\": " << args.sensor_fps << ",\n";
   out << "    \"processing_width\": " << args.out_w << ",\n";
   out << "    \"processing_height\": " << args.out_h << ",\n";
-  out << "    \"pixel_mode\": \"BGR_to_BGRA_cuda\"\n";
+  out << "    \"pixel_mode\": \"" << pixel_mode_for_preprocess(args.preprocess) << "\",\n";
+  out << "    \"detector_preprocess\": \"" << args.preprocess << "\"\n";
   out << "  },\n";
   out << "  \"tag_family\": \"tag36h11\",\n";
   out << "  \"tag_size_m\": " << args.tag_size << ",\n";
@@ -332,7 +382,7 @@ bool write_snapshot_json(
   out << "  \"timing\": {\n";
   out << "    \"display_fps\": " << fps_ema << ",\n";
   out << "    \"read_ms\": " << read_ms << ",\n";
-  out << "    \"convert_ms\": " << convert_ms << ",\n";
+  out << "    \"preprocess_ms\": " << preprocess_ms << ",\n";
   out << "    \"copy_ms\": " << copy_ms << ",\n";
   out << "    \"detector_ms\": " << detect_ms << "\n";
   out << "  },\n";
@@ -370,6 +420,91 @@ bool write_snapshot_json(
   out << "}\n";
   out.close();
   return std::rename(tmp.c_str(), path.c_str()) == 0;
+}
+
+void preprocess_for_detector(
+    const cv::Mat& frame,
+    const Args& args,
+    const cv::Ptr<cv::CLAHE>& clahe,
+    const cv::Mat& gamma06_lut,
+    const cv::Mat& gamma045_lut,
+    const cv::Mat& gamma05_lut,
+    const cv::Mat& gamma07_lut,
+    cv::Mat* gray,
+    cv::Mat* processed_gray,
+    cv::Mat* scratch_gray,
+    cv::Mat* processed_bgr,
+    cv::Mat* ycrcb,
+    cv::Mat* upload_frame) {
+  if (args.preprocess == "raw") {
+    cv::cvtColor(frame, *upload_frame, cv::COLOR_BGR2BGRA);
+    return;
+  }
+
+  if (args.preprocess == "color_gamma06") {
+    cv::LUT(frame, gamma06_lut, *processed_bgr);
+    cv::cvtColor(*processed_bgr, *upload_frame, cv::COLOR_BGR2BGRA);
+    return;
+  }
+  if (args.preprocess == "color_gamma045") {
+    cv::LUT(frame, gamma045_lut, *processed_bgr);
+    cv::cvtColor(*processed_bgr, *upload_frame, cv::COLOR_BGR2BGRA);
+    return;
+  }
+  if (args.preprocess == "gain") {
+    frame.convertTo(*processed_bgr, -1, 1.65, 18.0);
+    cv::cvtColor(*processed_bgr, *upload_frame, cv::COLOR_BGR2BGRA);
+    return;
+  }
+  if (args.preprocess == "y_equalize" || args.preprocess == "y_clahe") {
+    cv::cvtColor(frame, *ycrcb, cv::COLOR_BGR2YCrCb);
+    std::vector<cv::Mat> channels;
+    cv::split(*ycrcb, channels);
+    if (args.preprocess == "y_equalize") {
+      cv::equalizeHist(channels[0], channels[0]);
+    } else {
+      clahe->apply(channels[0], channels[0]);
+    }
+    cv::merge(channels, *ycrcb);
+    cv::cvtColor(*ycrcb, *processed_bgr, cv::COLOR_YCrCb2BGR);
+    cv::cvtColor(*processed_bgr, *upload_frame, cv::COLOR_BGR2BGRA);
+    return;
+  }
+
+  cv::cvtColor(frame, *gray, cv::COLOR_BGR2GRAY);
+  if (args.preprocess == "equalize") {
+    cv::equalizeHist(*gray, *processed_gray);
+  } else if (args.preprocess == "clahe") {
+    clahe->apply(*gray, *processed_gray);
+  } else if (args.preprocess == "gamma06") {
+    cv::LUT(*gray, gamma06_lut, *processed_gray);
+  } else if (args.preprocess == "gray_blur_gamma045") {
+    cv::GaussianBlur(*gray, *processed_gray, cv::Size(3, 3), 0.0);
+    cv::LUT(*processed_gray, gamma045_lut, *processed_gray);
+  } else if (args.preprocess == "gray_blur_gamma05") {
+    cv::GaussianBlur(*gray, *processed_gray, cv::Size(3, 3), 0.0);
+    cv::LUT(*processed_gray, gamma05_lut, *processed_gray);
+  } else if (args.preprocess == "gray_blur_gamma06") {
+    cv::GaussianBlur(*gray, *processed_gray, cv::Size(3, 3), 0.0);
+    cv::LUT(*processed_gray, gamma06_lut, *processed_gray);
+  } else if (args.preprocess == "gray_blur_gamma07") {
+    cv::GaussianBlur(*gray, *processed_gray, cv::Size(3, 3), 0.0);
+    cv::LUT(*processed_gray, gamma07_lut, *processed_gray);
+  } else if (args.preprocess == "gray_median_gamma06") {
+    cv::medianBlur(*gray, *processed_gray, 3);
+    cv::LUT(*processed_gray, gamma06_lut, *processed_gray);
+  } else if (args.preprocess == "gray_sharp_gamma06") {
+    cv::GaussianBlur(*gray, *scratch_gray, cv::Size(3, 3), 0.0);
+    cv::addWeighted(*gray, 1.55, *scratch_gray, -0.55, 0.0, *processed_gray);
+    cv::LUT(*processed_gray, gamma06_lut, *processed_gray);
+  } else if (args.preprocess == "adaptive") {
+    cv::adaptiveThreshold(
+        *gray, *processed_gray, 255,
+        cv::ADAPTIVE_THRESH_GAUSSIAN_C, cv::THRESH_BINARY, 31, 5);
+  } else {
+    cv::equalizeHist(*gray, *processed_gray);
+  }
+  cv::cvtColor(*processed_gray, *upload_frame, cv::COLOR_GRAY2BGRA);
 }
 
 void draw_pose_axes(cv::Mat& frame, const Args& args, const nvAprilTagsID_t& tag) {
@@ -477,7 +612,7 @@ int main(int argc, char** argv) {
   }
 
   std::vector<double> read_ms;
-  std::vector<double> convert_ms;
+  std::vector<double> preprocess_ms;
   std::vector<double> copy_ms;
   std::vector<double> detect_ms;
   if (args.gui) {
@@ -490,6 +625,26 @@ int main(int argc, char** argv) {
   double prev_frame_ms = now_ms();
   double start = now_ms();
   double deadline = args.seconds > 0 ? start + args.seconds * 1000.0 : 1.0e100;
+  cv::Mat gray_frame;
+  cv::Mat processed_gray;
+  cv::Mat scratch_gray;
+  cv::Mat processed_bgr;
+  cv::Mat ycrcb;
+  cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(3.0, cv::Size(8, 8));
+  cv::Mat gamma06_lut(1, 256, CV_8UC1);
+  cv::Mat gamma045_lut(1, 256, CV_8UC1);
+  cv::Mat gamma05_lut(1, 256, CV_8UC1);
+  cv::Mat gamma07_lut(1, 256, CV_8UC1);
+  for (int i = 0; i < 256; ++i) {
+    gamma06_lut.at<uchar>(0, i) = static_cast<uchar>(
+        std::max(0.0, std::min(255.0, 255.0 * std::pow(i / 255.0, 0.60))));
+    gamma045_lut.at<uchar>(0, i) = static_cast<uchar>(
+        std::max(0.0, std::min(255.0, 255.0 * std::pow(i / 255.0, 0.45))));
+    gamma05_lut.at<uchar>(0, i) = static_cast<uchar>(
+        std::max(0.0, std::min(255.0, 255.0 * std::pow(i / 255.0, 0.50))));
+    gamma07_lut.at<uchar>(0, i) = static_cast<uchar>(
+        std::max(0.0, std::min(255.0, 255.0 * std::pow(i / 255.0, 0.70))));
+  }
 
   while (now_ms() < deadline) {
     double t0 = now_ms();
@@ -505,7 +660,9 @@ int main(int argc, char** argv) {
       break;
     }
 
-    cv::cvtColor(frame, upload_frame, cv::COLOR_BGR2BGRA);
+    preprocess_for_detector(
+        frame, args, clahe, gamma06_lut, gamma045_lut, gamma05_lut, gamma07_lut,
+        &gray_frame, &processed_gray, &scratch_gray, &processed_bgr, &ycrcb, &upload_frame);
     double t1b = now_ms();
 
     cu = cudaMemcpy2D(
@@ -533,7 +690,7 @@ int main(int argc, char** argv) {
     }
 
     read_ms.push_back(t1 - t0);
-    convert_ms.push_back(t1b - t1);
+    preprocess_ms.push_back(t1b - t1);
     copy_ms.push_back(t2 - t1b);
     detect_ms.push_back(t3 - t2);
     if (num_tags > 0) frames_with_tags++;
@@ -590,6 +747,7 @@ int main(int argc, char** argv) {
               << "GPU AprilTag " << args.out_w << "x" << args.out_h
               << " fps=" << fps_ema
               << " tags=" << num_tags
+              << " prep=" << args.preprocess
               << " detect=" << (t3 - t2) << "ms";
       if (args.pose) {
         overlay << " pose=on";
@@ -612,8 +770,9 @@ int main(int argc, char** argv) {
             << " frames_with_tags=" << frames_with_tags << "\n";
   std::cout << "read_ms avg=" << avg(read_ms) << " p50=" << pct(read_ms, 0.50)
             << " p90=" << pct(read_ms, 0.90) << "\n";
-  std::cout << "convert_ms avg=" << avg(convert_ms) << " p50=" << pct(convert_ms, 0.50)
-            << " p90=" << pct(convert_ms, 0.90) << "\n";
+  std::cout << "preprocess=" << args.preprocess << "\n";
+  std::cout << "preprocess_ms avg=" << avg(preprocess_ms) << " p50=" << pct(preprocess_ms, 0.50)
+            << " p90=" << pct(preprocess_ms, 0.90) << "\n";
   std::cout << "copy_ms avg=" << avg(copy_ms) << " p50=" << pct(copy_ms, 0.50)
             << " p90=" << pct(copy_ms, 0.90) << "\n";
   std::cout << "detect_ms avg=" << avg(detect_ms) << " p50=" << pct(detect_ms, 0.50)

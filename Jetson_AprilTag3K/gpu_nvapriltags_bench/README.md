@@ -34,6 +34,18 @@ The script:
 
 The GUI is color because OpenCV receives BGR frames, then uploads BGRA to CUDA. The detector itself runs through NVIDIA's GPU library.
 
+The live detector now keeps the original BGR frame for display, but sends a
+separate preprocessed frame into `nvAprilTagsDetect`. The default preprocessing
+is:
+
+```text
+gray_blur_gamma07
+```
+
+That means: BGR camera frame -> grayscale -> small 3x3 Gaussian blur -> gamma
+0.70 -> BGRA upload -> NVIDIA GPU detector. This preserves the original video
+view while improving the detector input under the current dark lighting.
+
 ## Direct Command
 
 ```bash
@@ -45,11 +57,32 @@ The GUI is color because OpenCV receives BGR frames, then uploads BGRA to CUDA. 
   --seconds 0 \
   --warmup 8 \
   --gui \
+  --preprocess gray_blur_gamma07 \
   --calib-json /home/nvidia/Desktop/yolo_fisheye_calibration_jetson/calibration/usable_3k_downsample_1280x960/apriltag_fullfov_1280x960_intrinsics.json \
   --output-json /home/nvidia/Desktop/yolo_fisheye_calibration_jetson/output/apriltag_latest_jetson.json
 ```
 
 Add `--draw-axes` only when orientation arrows are needed.
+
+Useful preprocess modes:
+
+```text
+raw
+equalize
+clahe
+gamma06
+color_gamma06
+color_gamma045
+gain
+y_equalize
+y_clahe
+gray_blur_gamma045
+gray_blur_gamma05
+gray_blur_gamma06
+gray_blur_gamma07
+gray_median_gamma06
+gray_sharp_gamma06
+```
 
 ## Useful Results
 
@@ -64,6 +97,19 @@ All full-FOV rows capture IMX219 mode 0 at `3264x2464@21`; the listed size is th
 | native full 3264x2464 | dynamic | about 7 | about 90 ms | too slow |
 
 The sensor mode is the 21 fps ceiling. With `jetson_clocks`, the GPU detector is not the primary frame-rate limit at 1280x960.
+
+Current dark-scene verification on `192.168.1.80`:
+
+| Preprocess | Frames | FPS | Frames With Tags | Preprocess Avg | Detect Avg |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `raw` | 126 | 20.95 | 2 | 1.16 ms | 15.16 ms |
+| `equalize` | 126 | 20.94 | 0 | 4.63 ms | 15.64 ms |
+| `gray_blur_gamma06` | 126 | 20.91 | 24 | 2.86 ms | 22.54 ms |
+| `gray_blur_gamma07` | 252 | 20.96 | 132 | 2.82 ms | 21.13 ms |
+
+`gray_blur_gamma07` is the current default because it keeps the pipeline at the
+sensor frame-rate ceiling while substantially improving tag recognition. It is
+still the NVIDIA GPU detector, not a CPU fallback.
 
 ## Calibration Caveat
 

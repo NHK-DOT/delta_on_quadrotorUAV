@@ -22,5 +22,6 @@ exec ./nv_gpu_apriltag_bench \
   --seconds 0 \
   --warmup 8 \
   --gui \
+  --preprocess "${PREPROCESS:-gray_blur_gamma07}" \
   --calib-json "$CALIB" \
   --output-json "$OUT_JSON"

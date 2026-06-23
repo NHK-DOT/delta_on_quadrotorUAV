@@ -65,3 +65,29 @@ Before accepting future changes, record:
 - Tag detection rate.
 - Whether the detector is still GPU `nvAprilTags`.
 - Exact pre-processing inserted before the GPU detector.
+
+## Current Accepted Fix
+
+The accepted fix for the current dark scene is a detector-input-only
+preprocessing stage in the GPU bench:
+
+```text
+preprocess: gray_blur_gamma07
+path: BGR frame -> grayscale -> 3x3 Gaussian blur -> gamma 0.70 -> BGRA upload -> nvAprilTagsDetect
+display: original BGR frame with detection overlay
+```
+
+Verified on `192.168.1.80` at `1280x960`:
+
+```text
+frames=252
+elapsed_s=12.02
+fps=20.96
+frames_with_tags=132
+preprocess_ms avg=2.82
+detect_ms avg=21.13
+last tag id=3
+```
+
+This preserves the GPU detector and the 3K full-FOV downsampled runtime. It is
+not a CPU AprilTag fallback.
