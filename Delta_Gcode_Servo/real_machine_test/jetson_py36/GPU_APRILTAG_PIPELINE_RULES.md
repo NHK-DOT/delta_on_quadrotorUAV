@@ -91,3 +91,25 @@ last tag id=3
 
 This preserves the GPU detector and the 3K full-FOV downsampled runtime. It is
 not a CPU AprilTag fallback.
+
+The follow-up continuity fix keeps the same detector path and adds:
+
+- duplicate-ID filtering in each frame, keeping the lower-hamming/larger-area tag
+- bounded GUI last-good overlay, default `350 ms`
+- bounded JSON last-good output, default `180 ms`, with `is_held` and `held_ms`
+
+Latest verification:
+
+```text
+frames=252
+elapsed_s=12.03
+fps=20.95
+frames_with_tags=206
+preprocess_ms avg=2.75
+detect_ms avg=23.19
+latest JSON id=3
+```
+
+ISP exposure/TNR/gain controls were exposed for testing, but they are not enabled
+by default because the tested combinations reduced recognition in the current
+scene.

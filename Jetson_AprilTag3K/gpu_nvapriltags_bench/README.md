@@ -106,10 +106,37 @@ Current dark-scene verification on `192.168.1.80`:
 | `equalize` | 126 | 20.94 | 0 | 4.63 ms | 15.64 ms |
 | `gray_blur_gamma06` | 126 | 20.91 | 24 | 2.86 ms | 22.54 ms |
 | `gray_blur_gamma07` | 252 | 20.96 | 132 | 2.82 ms | 21.13 ms |
+| `gray_blur_gamma07` + duplicate-ID filter + 180 ms JSON hold | 252 | 20.95 | 206 | 2.75 ms | 23.19 ms |
 
 `gray_blur_gamma07` is the current default because it keeps the pipeline at the
 sensor frame-rate ceiling while substantially improving tag recognition. It is
 still the NVIDIA GPU detector, not a CPU fallback.
+
+The GUI also keeps a short last-good overlay (`--gui-hold-ms`, default 350 ms)
+so the box does not disappear on isolated missed frames. JSON output can reuse
+the last detection for a short bounded window (`--output-hold-ms`, default
+180 ms). Held detections are marked with:
+
+```json
+{
+  "is_held": true,
+  "held_ms": 73.0,
+  "source_timestamp_unix": 1782240000.0
+}
+```
+
+This is a bounded continuity aid for the sampler, not a replacement for real
+detection. Set `OUTPUT_HOLD_MS=0` to disable it.
+
+The bench also exposes Jetson ISP controls for experiments:
+
+```bash
+EXPOSURE_COMPENSATION=0.7 TNR_MODE=2 TNR_STRENGTH=0.7 bash run_fullfov_1280x960_gui.sh
+GAINRANGE="1 8" ISPDIGITALGAINRANGE="1 4" bash run_fullfov_1280x960_gui.sh
+```
+
+In the current scene these ISP changes did not beat the base camera settings;
+the best measured result remained the base camera path plus `gray_blur_gamma07`.
 
 ## Calibration Caveat
 

@@ -26,6 +26,9 @@ struct Args {
   int sensor_w = 3264;
   int sensor_h = 2464;
   int sensor_fps = 21;
+  int tnr_mode = -1;
+  float tnr_strength = -1.0f;
+  float exposure_compensation = 0.0f;
   int out_w = 800;
   int out_h = 604;
   int seconds = 20;
@@ -40,6 +43,11 @@ struct Args {
   float cx = 0.0f;
   float cy = 0.0f;
   float tag_size = 0.0305f;
+  float gui_hold_ms = 350.0f;
+  float output_hold_ms = 180.0f;
+  std::string exposuretimerange;
+  std::string gainrange;
+  std::string ispdigitalgainrange;
   std::string calib_json;
   std::string output_json;
 };
@@ -71,6 +79,12 @@ void usage(const char* argv0) {
       << "  --mode <0|1|2|3|4>      nvarguscamerasrc sensor-mode\n"
       << "  --sensor WxH             sensor capture size, e.g. 3264x2464\n"
       << "  --sensor-fps N           sensor framerate\n"
+      << "  --exposure-compensation N  nvarguscamerasrc exposure compensation, -2..2\n"
+      << "  --exposuretimerange \"L H\" nvarguscamerasrc exposure time range ns\n"
+      << "  --gainrange \"L H\"         nvarguscamerasrc analog gain range\n"
+      << "  --ispdigitalgainrange \"L H\" nvarguscamerasrc ISP digital gain range\n"
+      << "  --tnr-mode N             temporal noise reduction: 0 off, 1 fast, 2 high quality\n"
+      << "  --tnr-strength N         temporal noise reduction strength\n"
       << "  --out WxH                nvvidconv output size, e.g. 800x604\n"
       << "  --seconds N              measured run duration\n"
       << "  --warmup N               warmup frames\n"
@@ -84,6 +98,8 @@ void usage(const char* argv0) {
       << "  --hfov-deg N             approximate pinhole intrinsics from horizontal FOV\n"
       << "  --calib-json PATH        load and scale camera_matrix from calibration JSON\n"
       << "  --pose fx,fy,cx,cy,tag   enable pose output with intrinsics and tag size\n"
+      << "  --gui-hold-ms N          draw last detected tag for N ms in GUI only\n"
+      << "  --output-hold-ms N       reuse last JSON detection for N ms after a miss\n"
       << "  --output-json PATH       write latest detections for arm-side Python\n";
 }
 
@@ -205,6 +221,27 @@ bool parse_args(int argc, char** argv, Args* args) {
     } else if (key == "--sensor-fps") {
       const char* v = need_value("--sensor-fps");
       if (!v || !parse_int(v, &args->sensor_fps)) return false;
+    } else if (key == "--exposure-compensation") {
+      const char* v = need_value("--exposure-compensation");
+      if (!v || !parse_float(v, &args->exposure_compensation)) return false;
+    } else if (key == "--exposuretimerange") {
+      const char* v = need_value("--exposuretimerange");
+      if (!v) return false;
+      args->exposuretimerange = v;
+    } else if (key == "--gainrange") {
+      const char* v = need_value("--gainrange");
+      if (!v) return false;
+      args->gainrange = v;
+    } else if (key == "--ispdigitalgainrange") {
+      const char* v = need_value("--ispdigitalgainrange");
+      if (!v) return false;
+      args->ispdigitalgainrange = v;
+    } else if (key == "--tnr-mode") {
+      const char* v = need_value("--tnr-mode");
+      if (!v || !parse_int(v, &args->tnr_mode)) return false;
+    } else if (key == "--tnr-strength") {
+      const char* v = need_value("--tnr-strength");
+      if (!v || !parse_float(v, &args->tnr_strength)) return false;
     } else if (key == "--out") {
       const char* v = need_value("--out");
       if (!v || !parse_size(v, &args->out_w, &args->out_h)) return false;
@@ -251,6 +288,12 @@ bool parse_args(int argc, char** argv, Args* args) {
     } else if (key == "--pose") {
       const char* v = need_value("--pose");
       if (!v || !parse_pose(v, args)) return false;
+    } else if (key == "--gui-hold-ms") {
+      const char* v = need_value("--gui-hold-ms");
+      if (!v || !parse_float(v, &args->gui_hold_ms)) return false;
+    } else if (key == "--output-hold-ms") {
+      const char* v = need_value("--output-hold-ms");
+      if (!v || !parse_float(v, &args->output_hold_ms)) return false;
     } else if (key == "--output-json") {
       const char* v = need_value("--output-json");
       if (!v) return false;
@@ -268,7 +311,24 @@ bool parse_args(int argc, char** argv, Args* args) {
 
 std::string make_pipeline(const Args& args) {
   std::ostringstream p;
-  p << "nvarguscamerasrc sensor-id=0 sensor-mode=" << args.sensor_mode << " ! "
+  p << "nvarguscamerasrc sensor-id=0 sensor-mode=" << args.sensor_mode << " "
+    << "exposurecompensation=" << args.exposure_compensation << " ";
+  if (!args.exposuretimerange.empty()) {
+    p << "exposuretimerange=\"" << args.exposuretimerange << "\" ";
+  }
+  if (!args.gainrange.empty()) {
+    p << "gainrange=\"" << args.gainrange << "\" ";
+  }
+  if (!args.ispdigitalgainrange.empty()) {
+    p << "ispdigitalgainrange=\"" << args.ispdigitalgainrange << "\" ";
+  }
+  if (args.tnr_mode >= 0) {
+    p << "tnr-mode=" << args.tnr_mode << " ";
+  }
+  if (args.tnr_strength >= 0.0f) {
+    p << "tnr-strength=" << args.tnr_strength << " ";
+  }
+  p << "! "
     << "video/x-raw(memory:NVMM),width=" << args.sensor_w
     << ",height=" << args.sensor_h
     << ",framerate=" << args.sensor_fps << "/1 ! "
@@ -310,6 +370,49 @@ cv::Point2f tag_center(const nvAprilTagsID_t& tag) {
   return c;
 }
 
+double tag_area(const nvAprilTagsID_t& tag) {
+  double area = 0.0;
+  for (int i = 0; i < 4; ++i) {
+    int j = (i + 1) % 4;
+    area += static_cast<double>(tag.corners[i].x) * tag.corners[j].y -
+            static_cast<double>(tag.corners[j].x) * tag.corners[i].y;
+  }
+  return std::fabs(area) * 0.5;
+}
+
+bool better_tag_candidate(const nvAprilTagsID_t& candidate, const nvAprilTagsID_t& current) {
+  if (candidate.hamming_error != current.hamming_error) {
+    return candidate.hamming_error < current.hamming_error;
+  }
+  return tag_area(candidate) > tag_area(current);
+}
+
+uint32_t filter_duplicate_ids(
+    const std::vector<nvAprilTagsID_t>& input,
+    uint32_t input_count,
+    uint32_t max_tags,
+    std::vector<nvAprilTagsID_t>* output) {
+  output->clear();
+  uint32_t limit = std::min<uint32_t>(input_count, std::min<uint32_t>(max_tags, input.size()));
+  for (uint32_t i = 0; i < limit; ++i) {
+    const nvAprilTagsID_t& tag = input[i];
+    bool replaced = false;
+    for (auto& existing : *output) {
+      if (existing.id == tag.id) {
+        if (better_tag_candidate(tag, existing)) {
+          existing = tag;
+        }
+        replaced = true;
+        break;
+      }
+    }
+    if (!replaced) {
+      output->push_back(tag);
+    }
+  }
+  return static_cast<uint32_t>(output->size());
+}
+
 double unix_time_s() {
   using clock = std::chrono::system_clock;
   return std::chrono::duration<double>(clock::now().time_since_epoch()).count();
@@ -344,7 +447,10 @@ bool write_snapshot_json(
     double read_ms,
     double preprocess_ms,
     double copy_ms,
-    double detect_ms) {
+    double detect_ms,
+    bool detections_held,
+    double held_ms,
+    double source_timestamp_unix) {
   if (path.empty()) return true;
   std::string tmp = path + ".tmp";
   std::ofstream out(tmp.c_str());
@@ -394,6 +500,9 @@ bool write_snapshot_json(
     out << "    {\n";
     out << "      \"id\": " << tag.id << ",\n";
     out << "      \"hamming\": " << static_cast<int>(tag.hamming_error) << ",\n";
+    out << "      \"is_held\": " << (detections_held ? "true" : "false") << ",\n";
+    out << "      \"held_ms\": " << held_ms << ",\n";
+    out << "      \"source_timestamp_unix\": " << source_timestamp_unix << ",\n";
     out << "      \"center_px\": {\"x\": " << center.x << ", \"y\": " << center.y << "},\n";
     out << "      \"normalized_xy\": {\"x\": "
         << ((center.x - args.out_w * 0.5f) / (args.out_w * 0.5f))
@@ -598,7 +707,13 @@ int main(int argc, char** argv) {
 
   constexpr uint32_t kMaxTags = 64;
   std::vector<nvAprilTagsID_t> tags(kMaxTags);
+  std::vector<nvAprilTagsID_t> filtered_tags;
+  std::vector<nvAprilTagsID_t> json_hold_tags(kMaxTags);
   uint32_t num_tags = 0;
+  uint32_t filtered_num_tags = 0;
+  uint32_t json_hold_count = 0;
+  double json_hold_until_ms = 0.0;
+  double json_hold_source_unix = 0.0;
 
   cv::Mat frame;
   cv::Mat upload_frame;
@@ -615,6 +730,9 @@ int main(int argc, char** argv) {
   std::vector<double> preprocess_ms;
   std::vector<double> copy_ms;
   std::vector<double> detect_ms;
+  std::vector<nvAprilTagsID_t> gui_hold_tags(kMaxTags);
+  uint32_t gui_hold_count = 0;
+  double gui_hold_until_ms = 0.0;
   if (args.gui) {
     cv::namedWindow("nvAprilTags GPU", cv::WINDOW_NORMAL);
     cv::resizeWindow("nvAprilTags GPU", args.out_w, args.out_h);
@@ -688,12 +806,24 @@ int main(int argc, char** argv) {
                 << " cuda=" << cudaGetErrorString(cu) << "\n";
       break;
     }
+    filtered_num_tags = filter_duplicate_ids(tags, num_tags, kMaxTags, &filtered_tags);
 
     read_ms.push_back(t1 - t0);
     preprocess_ms.push_back(t1b - t1);
     copy_ms.push_back(t2 - t1b);
     detect_ms.push_back(t3 - t2);
-    if (num_tags > 0) frames_with_tags++;
+    if (filtered_num_tags > 0) {
+      frames_with_tags++;
+      gui_hold_count = std::min<uint32_t>(filtered_num_tags, kMaxTags);
+      for (uint32_t i = 0; i < gui_hold_count; ++i) {
+        gui_hold_tags[i] = filtered_tags[i];
+        json_hold_tags[i] = filtered_tags[i];
+      }
+      gui_hold_until_ms = t3 + std::max(0.0f, args.gui_hold_ms);
+      json_hold_count = gui_hold_count;
+      json_hold_until_ms = t3 + std::max(0.0f, args.output_hold_ms);
+      json_hold_source_unix = unix_time_s();
+    }
     frames++;
 
     double now = now_ms();
@@ -701,54 +831,72 @@ int main(int argc, char** argv) {
     prev_frame_ms = now;
     fps_ema = fps_ema == 0.0 ? inst_fps : fps_ema * 0.9 + inst_fps * 0.1;
 
+    const bool output_using_hold =
+        (filtered_num_tags == 0 && json_hold_count > 0 && now_ms() < json_hold_until_ms);
+    const std::vector<nvAprilTagsID_t>& output_tags = output_using_hold ? json_hold_tags : filtered_tags;
+    const uint32_t output_count = output_using_hold ? json_hold_count : filtered_num_tags;
+    const double held_ms = output_using_hold ? std::max(0.0, unix_time_s() - json_hold_source_unix) * 1000.0 : 0.0;
+    const double source_timestamp = output_using_hold ? json_hold_source_unix : unix_time_s();
     if (!args.output_json.empty() &&
         !write_snapshot_json(
             args.output_json,
             args,
-            tags,
-            num_tags,
+            output_tags,
+            output_count,
             fps_ema,
             t1 - t0,
             t1b - t1,
             t2 - t1b,
-            t3 - t2)) {
+            t3 - t2,
+            output_using_hold,
+            held_ms,
+            source_timestamp)) {
       std::cerr << "warning: failed to write output json: " << args.output_json << "\n";
     }
 
     if (args.gui) {
-      for (uint32_t i = 0; i < num_tags && i < kMaxTags; ++i) {
+      const bool using_hold = (filtered_num_tags == 0 && gui_hold_count > 0 && now_ms() < gui_hold_until_ms);
+      const std::vector<nvAprilTagsID_t>& draw_tags = using_hold ? gui_hold_tags : filtered_tags;
+      const uint32_t draw_count = using_hold ? gui_hold_count : std::min<uint32_t>(filtered_num_tags, kMaxTags);
+      for (uint32_t i = 0; i < draw_count && i < kMaxTags; ++i) {
         std::vector<cv::Point> pts;
         pts.reserve(4);
         for (int c = 0; c < 4; ++c) {
           pts.emplace_back(
-              static_cast<int>(std::lround(tags[i].corners[c].x)),
-              static_cast<int>(std::lround(tags[i].corners[c].y)));
+              static_cast<int>(std::lround(draw_tags[i].corners[c].x)),
+              static_cast<int>(std::lround(draw_tags[i].corners[c].y)));
         }
-        cv::polylines(frame, pts, true, cv::Scalar(0, 255, 0), 2, cv::LINE_AA);
-        cv::Point2f center = tag_center(tags[i]);
+        cv::Scalar line_color = using_hold ? cv::Scalar(0, 160, 255) : cv::Scalar(0, 255, 0);
+        cv::polylines(frame, pts, true, line_color, 2, cv::LINE_AA);
+        cv::Point2f center = tag_center(draw_tags[i]);
         cv::circle(frame, center, 4, cv::Scalar(0, 255, 255), cv::FILLED, cv::LINE_AA);
-        if (args.draw_axes) {
-          draw_pose_axes(frame, args, tags[i]);
+        if (args.draw_axes && !using_hold) {
+          draw_pose_axes(frame, args, draw_tags[i]);
         }
         std::ostringstream tag_text;
-        tag_text << "id " << tags[i].id;
-        if (args.pose && tags[i].translation[2] > 1.0e-6f) {
+        tag_text << (using_hold ? "hold id " : "id ") << draw_tags[i].id;
+        if (args.pose && draw_tags[i].translation[2] > 1.0e-6f) {
           tag_text << std::fixed << std::setprecision(3)
-                   << " X " << tags[i].translation[0]
-                   << " Y " << tags[i].translation[1]
-                   << " Z " << tags[i].translation[2] << " m";
+                   << " X " << draw_tags[i].translation[0]
+                   << " Y " << draw_tags[i].translation[1]
+                   << " Z " << draw_tags[i].translation[2] << " m";
         }
         cv::putText(frame, tag_text.str(), pts[0] + cv::Point(4, -4),
-                    cv::FONT_HERSHEY_SIMPLEX, 0.5, cv::Scalar(0, 255, 255), 2, cv::LINE_AA);
+                    cv::FONT_HERSHEY_SIMPLEX, 0.5,
+                    using_hold ? cv::Scalar(0, 180, 255) : cv::Scalar(0, 255, 255),
+                    2, cv::LINE_AA);
       }
 
       std::ostringstream overlay;
       overlay << std::fixed << std::setprecision(1)
               << "GPU AprilTag " << args.out_w << "x" << args.out_h
               << " fps=" << fps_ema
-              << " tags=" << num_tags
+              << " tags=" << filtered_num_tags
               << " prep=" << args.preprocess
               << " detect=" << (t3 - t2) << "ms";
+      if (num_tags == 0 && gui_hold_count > 0 && now_ms() < gui_hold_until_ms) {
+        overlay << " hold=" << gui_hold_count;
+      }
       if (args.pose) {
         overlay << " pose=on";
       }
