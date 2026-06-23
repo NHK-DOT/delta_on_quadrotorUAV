@@ -60,3 +60,7 @@ Thumbs.db
 *.mov
 *.avi
 *.mkv
+
+# NVIDIA nvAprilTags JetPack artifacts kept on the Jetson/local backup only
+/Jetson_AprilTag3K/gpu_nvapriltags_bench/libapril_tagging.a
+/Jetson_AprilTag3K/gpu_nvapriltags_bench/nvAprilTags.h

@@ -103,11 +103,9 @@ def make_object_points(cols, rows, square_size_m):
 
 def find_corners(gray, pattern_size):
     flags = cv2.CALIB_CB_NORMALIZE_IMAGE
-    if hasattr(cv2, "findChessboardCornersSB"):
-        found, corners = cv2.findChessboardCornersSB(gray, pattern_size, flags=flags)
-        if found:
-            return True, corners.astype(np.float64)
-
+    # OpenCV 3.4.5 on this Jetson can hang in findChessboardCornersSB on
+    # some full-FOV fisheye frames. The classic detector is more predictable
+    # for manual sample capture.
     found, corners = cv2.findChessboardCorners(
         gray,
         pattern_size,
@@ -182,10 +180,15 @@ def main():
     print("Opened YOLO/fisheye camera with source: {0}".format(backend_name))
     print("Hotkeys: space=save a valid checkerboard sample, c=calibrate, q=quit")
     print("Move the checkerboard through center, edges, corners, tilt angles, and different distances.")
+    window_name = "YOLO Fisheye Camera Calibration"
+    cv2.namedWindow(window_name, cv2.WINDOW_NORMAL)
+    cv2.resizeWindow(window_name, min(args.width, 1280), min(args.height, 960))
+    cv2.moveWindow(window_name, 40, 40)
 
     image_points = []
     object_points = []
     image_size = None
+    status_message = "preview ready; press space to detect/save board"
     args.capture_dir.mkdir(parents=True, exist_ok=True)
 
     try:
@@ -195,13 +198,7 @@ def main():
                 print("Camera frame grab failed, stopping.")
                 break
 
-            gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-            found, corners = find_corners(gray, pattern_size)
-
             display = frame.copy()
-            if found and corners is not None:
-                cv2.drawChessboardCorners(display, pattern_size, corners, found)
-
             cv2.putText(
                 display,
                 "samples: {0} / {1}".format(len(image_points), args.min_samples),
@@ -214,7 +211,7 @@ def main():
             )
             cv2.putText(
                 display,
-                "space=save valid board | c=calibrate | q=quit",
+                "space=detect/save | c=calibrate | q=quit",
                 (20, 60),
                 cv2.FONT_HERSHEY_SIMPLEX,
                 0.6,
@@ -222,22 +219,46 @@ def main():
                 2,
                 cv2.LINE_AA,
             )
-            cv2.imshow("YOLO Fisheye Camera Calibration", display)
+            cv2.putText(
+                display,
+                status_message,
+                (20, 90),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                0.6,
+                (0, 220, 255),
+                2,
+                cv2.LINE_AA,
+            )
+            cv2.imshow(window_name, display)
             key = cv2.waitKey(1) & 0xFF
 
             if key == ord("q"):
                 break
 
-            if key == ord(" ") and found and corners is not None:
-                image_points.append(corners.reshape(1, -1, 2).astype(np.float64))
-                object_points.append(objp.copy())
-                image_size = (gray.shape[1], gray.shape[0])
-                capture_path = args.capture_dir / "yolo_fisheye_{0:02d}_{1}.png".format(
-                    len(image_points),
-                    int(time.time()),
-                )
-                cv2.imwrite(str(capture_path), frame)
-                print("Saved sample {0}: {1}".format(len(image_points), capture_path))
+            if key == ord(" "):
+                status_message = "detecting checkerboard for this frame..."
+                print(status_message)
+                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
+                found, corners = find_corners(gray, pattern_size)
+                if found and corners is not None:
+                    image_points.append(corners.reshape(1, -1, 2).astype(np.float64))
+                    object_points.append(objp.copy())
+                    image_size = (gray.shape[1], gray.shape[0])
+                    capture_path = args.capture_dir / "yolo_fisheye_{0:02d}_{1}.png".format(
+                        len(image_points),
+                        int(time.time()),
+                    )
+                    annotated = frame.copy()
+                    corners_for_draw = corners.astype(np.float32).reshape(-1, 1, 2)
+                    cv2.drawChessboardCorners(annotated, pattern_size, corners_for_draw, found)
+                    cv2.imwrite(str(capture_path), annotated)
+                    status_message = "saved sample {0}".format(len(image_points))
+                    print("Saved sample {0}: {1}".format(len(image_points), capture_path))
+                    cv2.imshow(window_name, annotated)
+                    cv2.waitKey(250)
+                else:
+                    status_message = "checkerboard not found; move board and press space"
+                    print(status_message)
 
             if key == ord("c"):
                 if len(image_points) < args.min_samples or image_size is None:

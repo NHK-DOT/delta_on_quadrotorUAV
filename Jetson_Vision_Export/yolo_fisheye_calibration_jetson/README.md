@@ -23,6 +23,49 @@ ROWS=7
 SQUARE_SIZE_M=0.020
 ```
 
+## Current AprilTag Full-FOV Calibration
+
+For the Jetson AprilTag GPU path, use the full-FOV 3K downsample calibration:
+
+```text
+calibration/usable_3k_downsample_1280x960/apriltag_fullfov_1280x960_intrinsics.json
+```
+
+This calibration is for:
+
+```text
+3264x2464 sensor mode 0 full FOV
+-> downsample to 1280x960
+-> AprilTag detection at 1280x960
+```
+
+It is not the old native/cropped 720p calibration. Latest offline quality:
+
+```text
+valid samples: 32 / 100 raw images
+RMS reprojection error: 0.735554 px
+checkerboard: 10 x 7 internal corners
+square size: 0.020 m
+```
+
+Capture raw frames only:
+
+```bash
+cd ~/Desktop/yolo_fisheye_calibration_jetson
+python3 capture_fullfov_1280x960_samples.py
+```
+
+Then run safe offline calibration:
+
+```bash
+python3 calibrate_fisheye_from_images_safe.py \
+  --image-dir calibration/raw_apriltag_fullfov_1280x960 \
+  --cols 10 \
+  --rows 7 \
+  --square-size-m 0.020 \
+  --per-image-timeout 4.0
+```
+
 ## One-Click Calibration
 
 Run on the Jetson desktop:

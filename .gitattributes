@@ -1,2 +1,7 @@
 Jetson_Vision_Export/*.tar.gz filter=lfs diff=lfs merge=lfs -text
 Jetson_Vision_Export/yolo_fisheye_calibration_jetson.tar.gz filter=lfs diff=lfs merge=lfs -text
+
+Jetson_AprilTag3K/**/*.sh text eol=lf
+Jetson_AprilTag3K/**/*.py text eol=lf
+Jetson_Vision_Export/yolo_fisheye_calibration_jetson/*.sh text eol=lf
+Jetson_Vision_Export/yolo_fisheye_calibration_jetson/*.py text eol=lf
