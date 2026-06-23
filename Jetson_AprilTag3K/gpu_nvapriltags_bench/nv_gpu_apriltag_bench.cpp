@@ -43,8 +43,8 @@ struct Args {
   float cx = 0.0f;
   float cy = 0.0f;
   float tag_size = 0.0305f;
-  float gui_hold_ms = 350.0f;
-  float output_hold_ms = 180.0f;
+  float gui_hold_ms = 120.0f;
+  float output_hold_ms = 80.0f;
   std::string exposuretimerange;
   std::string gainrange;
   std::string ispdigitalgainrange;

@@ -106,16 +106,16 @@ Current dark-scene verification on `192.168.1.80`:
 | `equalize` | 126 | 20.94 | 0 | 4.63 ms | 15.64 ms |
 | `gray_blur_gamma06` | 126 | 20.91 | 24 | 2.86 ms | 22.54 ms |
 | `gray_blur_gamma07` | 252 | 20.96 | 132 | 2.82 ms | 21.13 ms |
-| `gray_blur_gamma07` + duplicate-ID filter + 180 ms JSON hold | 252 | 20.95 | 206 | 2.75 ms | 23.19 ms |
+| `gray_blur_gamma07` + duplicate-ID filter + short JSON hold | 252 | 20.95 | 206 | 2.75 ms | 23.19 ms |
 
 `gray_blur_gamma07` is the current default because it keeps the pipeline at the
 sensor frame-rate ceiling while substantially improving tag recognition. It is
 still the NVIDIA GPU detector, not a CPU fallback.
 
-The GUI also keeps a short last-good overlay (`--gui-hold-ms`, default 350 ms)
+The GUI also keeps a short last-good overlay (`--gui-hold-ms`, default 120 ms)
 so the box does not disappear on isolated missed frames. JSON output can reuse
 the last detection for a short bounded window (`--output-hold-ms`, default
-180 ms). Held detections are marked with:
+80 ms). Held detections are marked with:
 
 ```json
 {
@@ -126,7 +126,8 @@ the last detection for a short bounded window (`--output-hold-ms`, default
 ```
 
 This is a bounded continuity aid for the sampler, not a replacement for real
-detection. Set `OUTPUT_HOLD_MS=0` to disable it.
+detection. The default hold is intentionally short so fast motion does not drag
+old tag positions across the GUI. Set `OUTPUT_HOLD_MS=0` to disable it.
 
 The bench also exposes Jetson ISP controls for experiments:
 

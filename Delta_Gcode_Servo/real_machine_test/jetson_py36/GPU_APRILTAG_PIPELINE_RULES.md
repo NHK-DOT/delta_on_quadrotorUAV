@@ -95,8 +95,8 @@ not a CPU AprilTag fallback.
 The follow-up continuity fix keeps the same detector path and adds:
 
 - duplicate-ID filtering in each frame, keeping the lower-hamming/larger-area tag
-- bounded GUI last-good overlay, default `350 ms`
-- bounded JSON last-good output, default `180 ms`, with `is_held` and `held_ms`
+- bounded GUI last-good overlay, default `120 ms`
+- bounded JSON last-good output, default `80 ms`, with `is_held` and `held_ms`
 
 Latest verification:
 
