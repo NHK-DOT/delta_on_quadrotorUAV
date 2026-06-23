@@ -21,7 +21,7 @@ if BT_8BITDO_SRC not in sys.path:
     sys.path.insert(0, BT_8BITDO_SRC)
 
 DEFAULT_APRILTAG_JSON = "/home/nvidia/Desktop/yolo_fisheye_calibration_jetson/output/apriltag_latest_jetson.json"
-DEFAULT_APRILTAG_LAUNCH = os.path.join(HERE, "run_opencv_equalized_apriltag_jetson.sh")
+DEFAULT_APRILTAG_LAUNCH = "/home/nvidia/Desktop/yolo_fisheye_calibration_jetson/nv_gpu_apriltags_bench/run_fullfov_1280x960_gui.sh"
 DEFAULT_SERVO_CONFIG = os.path.join(PROJECT_ROOT, "lx225_tool_demo", "config", "lx225_tool.demo.toml")
 DEFAULT_GAMEPAD_CONFIG = os.path.join(PROJECT_ROOT, "bt_8bitdo_min", "config", "gamepad_8bitdo_bt.json")
 DEFAULT_CALIBRATION = os.path.join(PROJECT_ROOT, "Dual_Camera_HandEye", "output", "calibration_result.json")
