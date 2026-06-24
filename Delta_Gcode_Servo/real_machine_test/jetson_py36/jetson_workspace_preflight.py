@@ -203,7 +203,14 @@ def check_servo(results, args):
     try:
         mapper = ServoMapper(args.servo_config)
         home_raw = dict(mapper.reference_raw)
-        add_result(results, "servo_config", True, args.servo_config, data={"home_raw": home_raw})
+        startup_check_raw = dict(mapper.startup_check_raw)
+        add_result(
+            results,
+            "servo_config",
+            True,
+            args.servo_config,
+            data={"home_raw": home_raw, "startup_check_raw": startup_check_raw},
+        )
     except Exception as exc:
         return add_result(results, "servo_config", False, "failed: %s" % exc)
 
@@ -221,14 +228,14 @@ def check_servo(results, args):
         except Exception as exc:
             add_result(results, "servo_battery", False, "read failed: %s" % exc, required=False)
 
-        errors = mapper.home_errors(raw)
+        errors = mapper.startup_check_errors(raw)
         max_abs = max(abs(int(value)) for value in errors.values())
         home_ok = max_abs <= int(args.home_tolerance)
         return add_result(
             results,
             "home_pose",
             home_ok or args.skip_home_check,
-            "errors ticks: 1=%+d 2=%+d 3=%+d, tolerance=%d"
+            "startup errors ticks: 1=%+d 2=%+d 3=%+d, tolerance=%d"
             % (errors[1], errors[2], errors[3], args.home_tolerance),
             required=not args.skip_home_check,
             data={"errors": errors, "tolerance": args.home_tolerance, "home_ok": home_ok},

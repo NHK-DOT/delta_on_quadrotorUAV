@@ -3,6 +3,13 @@ import time
 import serial
 
 
+def _to_signed_int16(low, high):
+    value = (int(low) | (int(high) << 8)) & 0xFFFF
+    if value >= 0x8000:
+        value -= 0x10000
+    return value
+
+
 class Packet(object):
     HEADER = b"\x55\x55"
 
@@ -131,7 +138,7 @@ class BusServoDriver(object):
         offset = 1
         for _ in range(count):
             servo_id = payload[offset]
-            position = payload[offset + 1] | (payload[offset + 2] << 8)
+            position = _to_signed_int16(payload[offset + 1], payload[offset + 2])
             positions[servo_id] = position
             offset += 3
         missing = [servo_id for servo_id in ids if servo_id not in positions]

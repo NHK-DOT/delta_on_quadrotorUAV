@@ -212,6 +212,7 @@ class JetsonWorkspaceSampler(object):
                 "update_rate_hz": args.update_rate_hz,
             },
             "home_raw": self.home_raw,
+            "startup_check_raw": dict(self.mapper.startup_check_raw),
             "note": args.note,
         }
         write_json(self.session_json, self.session_payload)
@@ -278,7 +279,7 @@ class JetsonWorkspaceSampler(object):
             return not strict
 
     def home_errors(self):
-        return self.mapper.home_errors(self.current_raw)
+        return self.mapper.startup_check_errors(self.current_raw)
 
     def at_home(self):
         errors = self.home_errors()
@@ -287,7 +288,12 @@ class JetsonWorkspaceSampler(object):
     def startup_check(self):
         print("")
         print("Startup safety check")
-        print("  Expected home raw: 1=%d 2=%d 3=%d" % (self.home_raw[1], self.home_raw[2], self.home_raw[3]))
+        startup_raw = self.mapper.startup_check_raw
+        print(
+            "  Expected startup raw: 1=%d 2=%d 3=%d"
+            % (startup_raw[1], startup_raw[2], startup_raw[3])
+        )
+        print("  Motion mapping home raw: 1=%d 2=%d 3=%d" % (self.home_raw[1], self.home_raw[2], self.home_raw[3]))
         print("  This sampler will read feedback before any move command.")
         if not self.read_feedback(force=True, strict=True):
             print(self.fault or "feedback failed")
@@ -299,8 +305,8 @@ class JetsonWorkspaceSampler(object):
         )
         print("  Home error ticks:  1=%+d 2=%+d 3=%+d" % (errors[1], errors[2], errors[3]))
         if not self.at_home():
-            print("Startup refused: arm is not near configured home_raw.")
-            print("Move the arm to the top/home safe position, or rerun with --allow-not-home for expert manual sampling.")
+            print("Startup refused: arm is not near configured startup_check_raw.")
+            print("Move the arm to the startup self-check position, or rerun with --allow-not-home for expert manual sampling.")
             if not self.args.allow_not_home:
                 return False
         age = snapshot_age_ms(self.args.base_camera_snapshot)

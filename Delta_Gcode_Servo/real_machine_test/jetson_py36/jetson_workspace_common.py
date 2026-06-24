@@ -110,11 +110,13 @@ def load_servo_mapping_config(path):
     mappings = {}
     for _name, item in servos.items():
         servo_id = int(item.get("id"))
+        startup_check_raw = item.get("startup_check_raw")
         mappings[servo_id] = {
             "id": servo_id,
             "raw_min": int(item.get("raw_min", 0)),
             "raw_max": int(item.get("raw_max", 1000)),
             "home_raw": int(item.get("home_raw", item.get("raw_max", 1000))),
+            "startup_check_raw": None if startup_check_raw is None else int(startup_check_raw),
             "logical_min": float(item.get("mapped_angle_at_raw_min", 0.0)),
             "logical_max": float(item.get("mapped_angle_at_raw_max", 1000.0)),
             "position_step": int(item.get("position_step", default_step)),
@@ -141,12 +143,17 @@ class ServoMapper(object):
         self.physical_max_deg = 240.0
         self.reference_angles = inverse_kinematics(0.0, 0.0, 240.0)[0]
         self.reference_raw = {}
+        self.startup_check_raw = {}
         self.reference_coord = {}
         self.logical_directions = {}
         self.units_per_degree = {}
         for servo_id in self.servo_ids:
             item = self.mappings[servo_id]
-            self.reference_raw[servo_id] = quantize_raw(item, item.get("home_raw", item["raw_max"]))
+            self.reference_raw[servo_id] = clamp_raw(item, item.get("home_raw", item["raw_max"]))
+            if item.get("startup_check_raw") is None:
+                self.startup_check_raw[servo_id] = self.reference_raw[servo_id]
+            else:
+                self.startup_check_raw[servo_id] = int(item["startup_check_raw"])
             self.reference_coord[servo_id] = raw_to_logical(item, self.reference_raw[servo_id])
             logical_span = item["logical_max"] - item["logical_min"]
             self.logical_directions[servo_id] = self.raw_directions[servo_id] * (1 if logical_span >= 0 else -1)
@@ -179,10 +186,21 @@ class ServoMapper(object):
             for servo_id in self.servo_ids
         }
 
+    def startup_check_errors(self, raw_positions):
+        return {
+            servo_id: int(raw_positions[servo_id]) - int(self.startup_check_raw[servo_id])
+            for servo_id in self.servo_ids
+        }
+
 
 def quantize_raw(item, value):
     step = max(1, int(item["position_step"]))
     raw = int(round(float(value) / step) * step)
+    return clamp_raw(item, raw)
+
+
+def clamp_raw(item, value):
+    raw = int(round(float(value)))
     low = min(int(item["raw_min"]), int(item["raw_max"]))
     high = max(int(item["raw_min"]), int(item["raw_max"]))
     return max(low, min(high, raw))

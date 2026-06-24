@@ -48,7 +48,7 @@ def _parse_simple_positions_payload(payload: bytes) -> dict[int, int]:
     offset = 1
     for _ in range(count):
         returned_id = payload[offset]
-        position = payload[offset + 1] | (payload[offset + 2] << 8)
+        position = _to_signed_int16(payload[offset + 1], payload[offset + 2])
         found[int(returned_id)] = int(position)
         offset += 3
     return found

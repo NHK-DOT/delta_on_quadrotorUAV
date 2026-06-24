@@ -21,7 +21,7 @@ Jetson Xavier NX 192.168.1.80
   -> jetson_py36 只读自检
   -> 检查 8BitDo 是否连接
   -> 检查舵机 1/2/3 是否能回读
-  -> 检查机械臂是否接近 home_raw 初始位
+  -> 检查机械臂是否接近 startup_check_raw 启动自检位
   -> 输入 YES 后允许低速手动移动
   -> 按 B 采样 AprilTag 工具点 XYZ + 舵机 raw
   -> workspace_model_tools.py 拟合模型并扫描工作空间
@@ -68,6 +68,124 @@ bash deploy/install_ubuntu18.sh
 
 第一次安装后退出登录再重新登录，使 `input` 组权限生效。
 
+运行自检或采样前，先确认当前两个串口分别是谁。下面这套流程只做枚举和被动接收，
+不会向舵机驱动板写入任何字节。
+
+```bash
+ls -l /dev/serial/by-id /dev/serial/by-path 2>/dev/null || true
+ls -l /dev/ttyUSB* /dev/ttyACM* 2>/dev/null || true
+
+for p in /dev/ttyUSB* /dev/ttyACM*; do
+  [ -e "$p" ] || continue
+  echo "[$p]"
+  udevadm info --query=property --name="$p" 2>/dev/null \
+    | grep -E '^(DEVNAME|ID_BUS|ID_VENDOR|ID_VENDOR_ID|ID_MODEL|ID_MODEL_ID|ID_SERIAL|ID_PATH|ID_USB_DRIVER)=' || true
+  fuser -v "$p" 2>/dev/null || true
+done
+```
+
+然后用 `9600` 被动监听区分 WT61C IMU。WT61C 会连续吐出 `0x55 0x51`、
+`0x55 0x52`、`0x55 0x53` 或 `0x55 0x54` 帧，并且校验和应当正确。舵机
+驱动板通常不会主动吐数据，只会在主机查询后响应，所以被动监听时没有字节是正常的。
+
+```bash
+python3 - <<'PY'
+import binascii
+import os
+import select
+import time
+
+import serial
+
+ports = ["/dev/ttyUSB0", "/dev/ttyUSB1"]
+baudrate = 9600
+duration = 5.0
+
+
+def wt61_frames(buf):
+    frames = []
+    i = 0
+    while i + 11 <= len(buf):
+        if buf[i] == 0x55 and buf[i + 1] in (0x51, 0x52, 0x53, 0x54, 0x59):
+            frame = buf[i : i + 11]
+            frames.append(((sum(frame[:10]) & 0xFF) == frame[10], bytes(frame)))
+            i += 11
+        else:
+            i += 1
+    return frames
+
+
+serials = []
+for port in ports:
+    if not os.path.exists(port):
+        continue
+    ser = serial.Serial(
+        port=port,
+        baudrate=baudrate,
+        timeout=0,
+        write_timeout=0,
+        xonxoff=False,
+        rtscts=False,
+        dsrdtr=False,
+    )
+    ser.dtr = False
+    ser.rts = False
+    serials.append(ser)
+    print("%s opened for passive read @ %d" % (port, baudrate))
+
+buffers = {ser.port: bytearray() for ser in serials}
+counts = {ser.port: 0 for ser in serials}
+end = time.time() + duration
+
+while serials and time.time() < end:
+    readable, _, _ = select.select(serials, [], [], 0.2)
+    for ser in readable:
+        data = ser.read(4096)
+        counts[ser.port] += len(data)
+        if len(buffers[ser.port]) < 256:
+            buffers[ser.port].extend(data[: 256 - len(buffers[ser.port])])
+
+for ser in serials:
+    ser.close()
+
+for port in ports:
+    buf = buffers.get(port, bytearray())
+    frames = wt61_frames(buf)
+    ok = sum(1 for valid, _ in frames if valid)
+    print("%s bytes=%d wt61_frames=%d checksum_ok=%d" % (
+        port,
+        counts.get(port, 0),
+        len(frames),
+        ok,
+    ))
+    if buf:
+        print("  sample_hex=%s" % binascii.hexlify(bytes(buf)).decode("ascii"))
+PY
+```
+
+当前 `192.168.1.80` 这台 Jetson 的实测映射是：
+
+```text
+IMU:    /dev/ttyUSB1 @ 9600
+舵机板: /dev/ttyUSB0 @ 9600
+```
+
+如果担心插拔后 `/dev/ttyUSB*` 编号变化，优先使用稳定的 `by-path`：
+
+```text
+IMU:    /dev/serial/by-path/platform-3610000.xhci-usb-0:2.4.1:1.0-port0
+舵机板: /dev/serial/by-path/platform-3610000.xhci-usb-0:2.4.2:1.0-port0
+```
+
+## 工作空间标定流程
+
+这是 `192.168.1.80` 的当前主线流程。先只读自检，再低速手动采样，最后用采样
+数据拟合模型并扫描工作空间。更完整的脚本说明在：
+
+```text
+Delta_Gcode_Servo/real_machine_test/jetson_py36/README.md
+```
+
 只读自检，不移动舵机：
 
 ```bash
@@ -96,9 +214,16 @@ PORT=/dev/ttyUSB1 HAND_TAG_ID=3 bash run_sampler_py36_jetson.sh
 - `Dual_Camera_HandEye/output/calibration_result.json` 是否能换算出工具点 XYZ。
 - 8BitDo 是否能在 `/dev/input/event*` 下打开。
 - 舵机板是否能读回 servo 1/2/3 raw 和电压。
-- 当前 raw 是否接近 `lx225_tool_demo/config/lx225_tool.demo.toml` 的 `home_raw`。
+- 当前 raw 是否接近 `lx225_tool_demo/config/lx225_tool.demo.toml` 的 `startup_check_raw`。
 
-默认 home 容差是 `25 ticks`。如果不在初始位，采样脚本默认拒绝启动。
+默认启动位容差是 `25 ticks`。如果不在启动自检位，采样脚本默认拒绝启动。
+
+舵机驱动板 `0x15` 反馈按有符号 int16 解释。例如 `0xFF43` 应看作 `-189`，不是无符号的 `65347`。配置里有两个相关字段：
+
+- `startup_check_raw`：只读自检使用的启动位。
+- `home_raw`：允许进入采样控制后，FK/IK 运动映射使用的 home 参考位。
+
+当前拆装后的 home 反馈已经写入配置：servo 1/2/3 分别是 `813`、`457`、`-189`。servo 3 的映射范围也使用同一套有符号 raw 坐标。
 
 ## 手柄控制
 
@@ -172,7 +297,7 @@ Delta_Gcode_Servo/delta_gcode_servo/kinematics.py
 - `bt_8bitdo_min/`：当前 Jetson Xavier NX 采样流程的最小兼容依赖。
 - `Jetson_AprilTag3K/`：3K 鱼眼全 FOV 降采样 GPU AprilTag 流程。
 - `Dual_Camera_HandEye/`：底座相机、AprilTag、工具坐标链路。
-- `lx225_tool_demo/`：LX-225 舵机配置，包含当前 `home_raw`。
+- `lx225_tool_demo/`：LX-225 舵机配置，包含当前 `home_raw` 和 `startup_check_raw`。
 - `IMU/`：WT61C IMU 工具和快照。
 - `AprilTag_Vision/`：旧本机 AprilTag 检测工具。
 - `Jetson_Vision_Export/`：历史 Jetson 视觉部署归档。

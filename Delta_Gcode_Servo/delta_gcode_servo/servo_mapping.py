@@ -59,7 +59,7 @@ class ServoAxisMapping:
 
     @property
     def reference_raw(self) -> int:
-        return self.quantize_raw(self.raw_max if self.home_raw is None else self.home_raw)
+        return self.clamp_raw(self.raw_max if self.home_raw is None else self.home_raw)
 
     def raw_to_logical(self, raw_value: int | float) -> float:
         return _linear_map(

@@ -35,7 +35,8 @@ id = 1
 position_step = 4
 raw_min = 399
 raw_max = 830
-home_raw = 814
+home_raw = 813
+startup_check_raw = 813
 mapped_angle_at_raw_min = 0.0
 mapped_angle_at_raw_max = 1000.0
 
@@ -44,16 +45,18 @@ id = 2
 position_step = 4
 raw_min = 109
 raw_max = 610
-home_raw = 472
+home_raw = 457
+startup_check_raw = 457
 mapped_angle_at_raw_min = 0.0
 mapped_angle_at_raw_max = 1000.0
 
 [servos.servo3]
 id = 3
 position_step = 4
-raw_min = 375
-raw_max = 860
-home_raw = 739
+raw_min = -553
+raw_max = -68
+home_raw = -189
+startup_check_raw = -189
 mapped_angle_at_raw_min = 0.0
 mapped_angle_at_raw_max = 1000.0
 

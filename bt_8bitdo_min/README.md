@@ -67,5 +67,6 @@ python3 jetson_workspace_preflight.py --port /dev/ttyUSB0 --hand-tag-id 3
 ```
 
 That check verifies 8BitDo input, servo feedback, AprilTag JSON freshness, and
-whether the arm is near the configured `home_raw` initial position. It sends no
-servo movement command.
+whether the arm is near the configured `startup_check_raw` self-check position.
+It sends no servo movement command. Controller-board `0x15` feedback is parsed
+as signed int16, so `0xFF43` is reported as `-189` instead of unsigned `65347`.

@@ -712,7 +712,13 @@ class LX225ToolGUI:
 
         profile = self._current_profile()
         draft = self._draft_mapping()
-        updated_profile = ServoProfile(name=profile.name, id=profile.id, mapping=draft)
+        updated_profile = ServoProfile(
+            name=profile.name,
+            id=profile.id,
+            mapping=draft,
+            home_raw=profile.home_raw,
+            startup_check_raw=profile.startup_check_raw,
+        )
         updated_config = build_updated_config(self.cfg, updated_profile)
         save_config(updated_config, self.config_path)
         self._reload_config_in_place()

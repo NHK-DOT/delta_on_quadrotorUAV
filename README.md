@@ -70,7 +70,7 @@ The actively maintained field path for the current hardware is:
 Jetson Xavier NX 192.168.1.80
   -> 3K fisheye full-FOV downsample AprilTag JSON
   -> Delta_Gcode_Servo/real_machine_test/jetson_py36/run_sampler_py36_jetson.sh
-  -> read-only preflight: gamepad, AprilTag, servo feedback, home_raw
+  -> read-only preflight: gamepad, AprilTag, servo feedback, startup_check_raw
   -> 8BitDo low-speed manual target XYZ
   -> Delta IK/FK and raw LX bus-servo mapping
   -> Hiwonder xArm 1.6 servo driver board
@@ -103,7 +103,20 @@ Gamepad / operator input
 The sampler can move real servos after the typed `YES` confirmation. The
 preflight path is read-only and checks 8BitDo input, AprilTag JSON freshness,
 servo feedback, and whether servo 1/2/3 are near the configured initial
-`home_raw` position.
+`startup_check_raw` position.
+
+The xArm 1.6 controller-board `0x15` feedback is parsed as signed int16. A
+packet value such as `0xFF43` is therefore `-189`, not unsigned `65347`.
+`lx225_tool_demo/config/lx225_tool.demo.toml` keeps two related values per main
+servo:
+
+- `startup_check_raw`: the read-only startup self-check target.
+- `home_raw`: the motion-mapping reference used after the sampler is allowed to
+  run.
+
+For the current reassembled arm, servo 1/2/3 are set to the measured home
+feedback `813`, `457`, and `-189`. Servo 3's mapping range is stored in the same
+signed coordinate system.
 
 ## Dual-Camera Hand-Eye Layout
 
@@ -177,6 +190,127 @@ Install 8BitDo input permissions on the Jetson if needed:
 ssh nvidia@192.168.1.80
 cd ~/Desktop/78arm/bt_8bitdo_min
 bash deploy/install_ubuntu18.sh
+```
+
+Identify the current serial ports before running the preflight. This procedure
+only opens serial ports for passive reads and never writes bytes to the servo
+driver board.
+
+```bash
+ls -l /dev/serial/by-id /dev/serial/by-path 2>/dev/null || true
+ls -l /dev/ttyUSB* /dev/ttyACM* 2>/dev/null || true
+
+for p in /dev/ttyUSB* /dev/ttyACM*; do
+  [ -e "$p" ] || continue
+  echo "[$p]"
+  udevadm info --query=property --name="$p" 2>/dev/null \
+    | grep -E '^(DEVNAME|ID_BUS|ID_VENDOR|ID_VENDOR_ID|ID_MODEL|ID_MODEL_ID|ID_SERIAL|ID_PATH|ID_USB_DRIVER)=' || true
+  fuser -v "$p" 2>/dev/null || true
+done
+```
+
+Then passively listen at `9600` to find the WT61C IMU. A WT61C stream contains
+`0x55 0x51`, `0x55 0x52`, `0x55 0x53`, or `0x55 0x54` frames with valid
+checksums. A quiet port during passive listening is expected for the Hiwonder
+servo driver board, because it normally responds only after a host query.
+
+```bash
+python3 - <<'PY'
+import binascii
+import os
+import select
+import time
+
+import serial
+
+ports = ["/dev/ttyUSB0", "/dev/ttyUSB1"]
+baudrate = 9600
+duration = 5.0
+
+
+def wt61_frames(buf):
+    frames = []
+    i = 0
+    while i + 11 <= len(buf):
+        if buf[i] == 0x55 and buf[i + 1] in (0x51, 0x52, 0x53, 0x54, 0x59):
+            frame = buf[i : i + 11]
+            frames.append(((sum(frame[:10]) & 0xFF) == frame[10], bytes(frame)))
+            i += 11
+        else:
+            i += 1
+    return frames
+
+
+serials = []
+for port in ports:
+    if not os.path.exists(port):
+        continue
+    ser = serial.Serial(
+        port=port,
+        baudrate=baudrate,
+        timeout=0,
+        write_timeout=0,
+        xonxoff=False,
+        rtscts=False,
+        dsrdtr=False,
+    )
+    ser.dtr = False
+    ser.rts = False
+    serials.append(ser)
+    print("%s opened for passive read @ %d" % (port, baudrate))
+
+buffers = {ser.port: bytearray() for ser in serials}
+counts = {ser.port: 0 for ser in serials}
+end = time.time() + duration
+
+while serials and time.time() < end:
+    readable, _, _ = select.select(serials, [], [], 0.2)
+    for ser in readable:
+        data = ser.read(4096)
+        counts[ser.port] += len(data)
+        if len(buffers[ser.port]) < 256:
+            buffers[ser.port].extend(data[: 256 - len(buffers[ser.port])])
+
+for ser in serials:
+    ser.close()
+
+for port in ports:
+    buf = buffers.get(port, bytearray())
+    frames = wt61_frames(buf)
+    ok = sum(1 for valid, _ in frames if valid)
+    print("%s bytes=%d wt61_frames=%d checksum_ok=%d" % (
+        port,
+        counts.get(port, 0),
+        len(frames),
+        ok,
+    ))
+    if buf:
+        print("  sample_hex=%s" % binascii.hexlify(bytes(buf)).decode("ascii"))
+PY
+```
+
+On the current `192.168.1.80` Jetson wiring, the observed mapping was:
+
+```text
+IMU:    /dev/ttyUSB1 @ 9600
+Servo:  /dev/ttyUSB0 @ 9600
+```
+
+Prefer the stable `by-path` links when the USB order matters:
+
+```text
+IMU:    /dev/serial/by-path/platform-3610000.xhci-usb-0:2.4.1:1.0-port0
+Servo:  /dev/serial/by-path/platform-3610000.xhci-usb-0:2.4.2:1.0-port0
+```
+
+## Workspace Calibration Flow / 工作空间标定流程
+
+This is the current `192.168.1.80` mainline: run the read-only preflight, collect
+low-speed AprilTag plus servo raw samples, then fit the workspace model and scan
+the reachable workspace. The script-specific field guide is:
+
+```text
+Delta_Gcode_Servo/real_machine_test/jetson_py36/README.md
 ```
 
 Run the read-only preflight:

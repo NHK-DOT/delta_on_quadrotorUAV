@@ -25,6 +25,8 @@ class ServoProfile:
     name: str
     id: int
     mapping: ServoMapping
+    home_raw: int | None = None
+    startup_check_raw: int | None = None
 
 
 @dataclass(frozen=True)
@@ -80,6 +82,8 @@ def load_config(path: str | Path) -> AppConfig:
             name=name,
             id=int(item["id"]),
             mapping=mapping,
+            home_raw=int(item["home_raw"]) if "home_raw" in item else None,
+            startup_check_raw=int(item["startup_check_raw"]) if "startup_check_raw" in item else None,
         )
 
     return AppConfig(
@@ -138,6 +142,14 @@ def format_config_text(config: AppConfig) -> str:
                 f"position_step = {mapping.position_step}",
                 f"raw_min = {mapping.raw_min}",
                 f"raw_max = {mapping.raw_max}",
+            ]
+        )
+        if profile.home_raw is not None:
+            lines.append(f"home_raw = {profile.home_raw}")
+        if profile.startup_check_raw is not None:
+            lines.append(f"startup_check_raw = {profile.startup_check_raw}")
+        lines.extend(
+            [
                 f"mapped_angle_at_raw_min = {mapping.mapped_angle_at_raw_min}",
                 f"mapped_angle_at_raw_max = {mapping.mapped_angle_at_raw_max}",
             ]

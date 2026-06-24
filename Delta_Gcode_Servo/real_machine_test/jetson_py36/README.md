@@ -31,7 +31,13 @@ python Delta_Gcode_Servo\real_machine_test\jetson_py36\deploy_to_jetson.py --pas
 
 并在 Jetson 上执行 Python 编译检查。它不会复制 `Jetson_Vision_Export/saved_runs`、历史 samples、日志等生成物。
 
-## 一键现场流程
+## 工作空间标定流程
+
+这是 `192.168.1.80` Jetson Xavier NX 的现场主线流程：先做只读自检，确认
+AprilTag、8BitDo、舵机反馈和启动位都正常；再进入低速手动采样；最后用采样
+数据拟合模型并扫描工作空间。
+
+最短闭环如下。
 
 登录 Jetson：
 
@@ -42,6 +48,7 @@ HAND_TAG_ID=3 bash run_sampler_py36_jetson.sh
 ```
 
 这个脚本会先启动 3K AprilTag 进程，再跑只读自检，全部通过后才进入采样控制。
+进入控制后，移动到标定点并按 `B` 记录当前 AprilTag 工具点 XYZ 和舵机 raw。
 
 如果 AprilTag 已经手动启动：
 
@@ -70,9 +77,11 @@ python3 jetson_workspace_preflight.py --port /dev/ttyUSB0 --hand-tag-id 3
 - `Dual_Camera_HandEye/output/calibration_result.json` 是否能把 tag 位姿换算成工具点 XYZ。
 - 8BitDo 是否能在 `/dev/input/event*` 下打开。
 - 舵机板 `/dev/ttyUSB0` 是否能读回 servo 1/2/3 raw 和电压。
-- 当前 raw 是否接近 `lx225_tool_demo/config/lx225_tool.demo.toml` 里的 `home_raw`。
+- 当前 raw 是否接近 `lx225_tool_demo/config/lx225_tool.demo.toml` 里的 `startup_check_raw`。
 
-默认 home 容差是 `25 ticks`。如果不在初始位，采样脚本默认拒绝启动。
+默认启动位容差是 `25 ticks`。如果不在启动自检位，采样脚本默认拒绝启动。
+
+舵机驱动板 `0x15` 反馈按有符号 int16 解释。例如 `0xFF43` 应看作 `-189`，不是无符号的 `65347`。`startup_check_raw` 是只读自检位，`home_raw` 是采样控制放行后的运动映射参考位。当前拆装后的 home 反馈已经写入配置：servo 1/2/3 分别是 `813`、`457`、`-189`。
 
 ## 手柄控制
 
@@ -128,7 +137,7 @@ vision_snapshot_age_ms
 
 其中 `x_mm/y_mm/z_mm` 是 AprilTag 视觉链路估计的工具点位置，`fk_*` 是当前旧模型根据舵机 raw 反馈计算出来的位置。
 
-## 用数据集拟合模型和计算工作空间
+## 离线拟合和工作空间扫描
 
 推荐在本机或 Python 3.11 环境跑离线模型工具：
 

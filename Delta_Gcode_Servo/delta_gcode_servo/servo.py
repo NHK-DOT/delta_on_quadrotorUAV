@@ -16,6 +16,11 @@ from .robot import DeltaRobot
 from .servo_mapping import ServoAxisMapping, default_mapping_config_path, load_servo_mappings_for_ids
 
 
+def _to_signed_int16(low: int, high: int) -> int:
+    value = (int(low) | (int(high) << 8)) & 0xFFFF
+    return value - 0x10000 if value >= 0x8000 else value
+
+
 class Packet:
     HEADER = b"\x55\x55"
 
@@ -178,7 +183,7 @@ class BusServoDriver:
         offset = 1
         for _ in range(count):
             servo_id = payload[offset]
-            position = payload[offset + 1] | (payload[offset + 2] << 8)
+            position = _to_signed_int16(payload[offset + 1], payload[offset + 2])
             positions[servo_id] = position
             offset += 3
 
