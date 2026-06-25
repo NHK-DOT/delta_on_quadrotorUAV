@@ -15,7 +15,7 @@
 按现在这台机器上已经验证过的情况：
 
 - `COM4` 是 `IMU`
-- `COM8` 是舵机驱动板
+- `COM19` 是舵机驱动板
 - 波特率是 `9600`
 
 对应配置文件：
@@ -119,7 +119,7 @@ python -m lx225_tool gui
 
 ```toml
 [serial]
-port = "COM8"
+port = "COM19"
 baudrate = 9600
 timeout = 0.60
 connect_delay = 1.00

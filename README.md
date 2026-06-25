@@ -119,9 +119,10 @@ servo:
 - `home_raw`: the motion-mapping reference used after the sampler is allowed to
   run.
 
-For the current reassembled arm, servo 1/2/3 are set to the measured home
-feedback `813`, `457`, and `-189`. Servo 3's mapping range is stored in the same
-signed coordinate system.
+For the current disassembled servo-only setup, servo 1/2/3 are set to the
+measured home feedback `750`, `762`, and `758`. The active raw mapping range for
+each main servo is `0..1000`, with `home_raw` and `startup_check_raw` both set
+to those measured home values.
 
 ## Dual-Camera Hand-Eye Layout
 

@@ -15,11 +15,8 @@
 [serial]
 # 实际连接舵机驱动板的串口。
 # 注意不要填成 IMU 的串口。
-# 结合当前机器的枚举结果：
-# - IMU 默认在 COM4
-# - 另一个 CH340 当前是 COM8
-# 所以这里先按“舵机驱动板 = COM8”写。
-port = "COM8"
+# 结合当前机器的枚举结果，舵机驱动板当前是 COM19。
+port = "COM19"
 
 # 波特率。
 # 这里按当前实测值 9600 写。
@@ -35,7 +32,7 @@ connect_delay = 1.00
 [defaults]
 # 全局默认量化步长。
 # 如果某个舵机没有单独写 `position_step`，就用这里的默认值。
-position_step = 5
+position_step = 4
 
 [servos.servo1]
 # 逻辑名字。
@@ -47,7 +44,7 @@ id = 1
 
 # 这个舵机自己的量化步长。
 # 如果和 [defaults] 一样，也建议显式写出来，方便一眼看懂。
-position_step = 5
+position_step = 4
 
 # 你希望这个舵机在“自定义映射”里采用的原始最小值。
 # 这不一定等于舵机内部限位，它只是映射参考范围。
@@ -56,32 +53,38 @@ raw_min = 0
 # 你希望这个舵机在“自定义映射”里采用的原始最大值。
 raw_max = 1000
 
+home_raw = 750
+startup_check_raw = 750
+
 # 当原始值等于 raw_min 时，对应你定义的角度值。
-# 当前示例沿用官方风格：raw=0 对应 240°。
-mapped_angle_at_raw_min = 240.0
+# 当前主线映射用 0..1000 坐标，raw=0 对应 0。
+mapped_angle_at_raw_min = 0.0
 
 # 当原始值等于 raw_max 时，对应你定义的角度值。
-# 当前示例沿用官方风格：raw=1000 对应 0°。
-# 这意味着角度方向是反的，也就是 raw 越大，角度越小。
-mapped_angle_at_raw_max = 0.0
+# 当前主线映射用 0..1000 坐标，raw=1000 对应 1000。
+mapped_angle_at_raw_max = 1000.0
 
 [servos.servo2]
 # 第二个舵机示例。
 id = 2
-position_step = 5
+position_step = 4
 raw_min = 0
 raw_max = 1000
-mapped_angle_at_raw_min = 240.0
-mapped_angle_at_raw_max = 0.0
+home_raw = 762
+startup_check_raw = 762
+mapped_angle_at_raw_min = 0.0
+mapped_angle_at_raw_max = 1000.0
 
 [servos.servo3]
 # 第三个舵机示例。
 id = 3
-position_step = 5
+position_step = 4
 raw_min = 0
 raw_max = 1000
-mapped_angle_at_raw_min = 240.0
-mapped_angle_at_raw_max = 0.0
+home_raw = 758
+startup_check_raw = 758
+mapped_angle_at_raw_min = 0.0
+mapped_angle_at_raw_max = 1000.0
 
 [servos.servo4]
 # 第四个舵机示例，可作为末端夹爪。

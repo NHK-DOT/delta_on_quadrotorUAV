@@ -327,7 +327,7 @@ def sample_once(
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     default_output_dir = Path(__file__).with_name("structure_calibration_samples")
     parser = argparse.ArgumentParser(description="Read-only Delta structure calibration sampler")
-    parser.add_argument("--port", default="COM15", help="Servo bus port, default: COM15")
+    parser.add_argument("--port", default="COM19", help="Servo bus port, default: COM19")
     parser.add_argument("--timeout", type=float, default=0.6)
     parser.add_argument("--output-dir", type=Path, default=default_output_dir)
     parser.add_argument("--calibration", type=Path, default=VisionToolPreviewConfig.calibration_path)

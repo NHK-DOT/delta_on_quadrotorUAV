@@ -223,7 +223,7 @@ PORT=/dev/ttyUSB1 HAND_TAG_ID=3 bash run_sampler_py36_jetson.sh
 - `startup_check_raw`：只读自检使用的启动位。
 - `home_raw`：允许进入采样控制后，FK/IK 运动映射使用的 home 参考位。
 
-当前拆装后的 home 反馈已经写入配置：servo 1/2/3 分别是 `813`、`457`、`-189`。servo 3 的映射范围也使用同一套有符号 raw 坐标。
+当前拆掉机械结构后的舵机本体 home 反馈已经写入配置：servo 1/2/3 分别是 `750`、`762`、`758`。三个主舵机当前都使用 `0..1000` raw 映射范围，`home_raw` 和 `startup_check_raw` 都同步到这些实测 home 值。
 
 ## 手柄控制
 

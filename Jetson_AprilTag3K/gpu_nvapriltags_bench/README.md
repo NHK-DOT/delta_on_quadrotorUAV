@@ -276,6 +276,95 @@ PREPROCESS=motion_clahe ./run_motion_1280x960_gui.sh
 
 ## 现场状态记录
 
+## 进一步提高降采样画质
+
+当前稳定档已经更新为 `1600x1208 + gray_blur_gamma07 + nvvidconv 10-tap + GPU + no-hold`。如果还想把降采样画质往上提，不要改成 CPU，也不要恢复 hold，优先从两个方向试：
+
+1. 提高检测输入画幅。
+2. 改 `nvvidconv` 的下采样插值方式，减少 nearest 缩放带来的锯齿和伪边缘。
+
+Jetson Xavier NX 上 `nvvidconv` 支持这些插值：
+
+```text
+0 nearest
+1 bilinear
+2 5-tap
+3 10-tap
+4 smart
+5 nicest
+```
+
+当前推荐采样脚本：
+
+```bash
+./run_robust_1600x1208_gui.sh
+```
+
+它默认使用：
+
+```bash
+OUT_SIZE=1600x1208
+PREPROCESS=gray_blur_gamma07
+NVVIDCONV_INTERPOLATION=3
+GUI_SCALE=0.75
+GUI_EVERY=2
+GUI_HOLD_MS=0
+OUTPUT_HOLD_MS=0
+```
+
+2026-06-24 同场景 8 秒 A/B：
+
+| 测试项 | 帧数 | 有 tag 帧数 | 命中率 | FPS |
+| --- | ---: | ---: | ---: | ---: |
+| `1600x1208` 默认 nvvidconv | 164 | 89 | 54.3% | 20.40 |
+| `1600x1208` + 10-tap | 166 | 113 | 68.1% | 20.75 |
+| `1600x1208` + nicest | 168 | 109 | 64.9% | 20.91 |
+| `1920x1450` + 10-tap | 136 | 1 | 0.7% | 17.00 |
+
+所以当前最佳实测状态是 `1600x1208 + NVVIDCONV_INTERPOLATION=3`，不是继续盲目升到 1920。
+
+新增的 1920 脚本只保留为实验档：
+
+```bash
+./run_hq_1920x1450_gui.sh
+```
+
+它默认使用：
+
+```bash
+OUT_SIZE=1920x1450
+PREPROCESS=gray_blur_gamma07
+NVVIDCONV_INTERPOLATION=3
+GUI_SCALE=0.55
+GUI_EVERY=3
+GUI_HOLD_MS=0
+OUTPUT_HOLD_MS=0
+```
+
+`NVVIDCONV_INTERPOLATION=3` 是 10-tap，下采样边缘通常会比 nearest 更平滑。`GUI_SCALE` 和 `GUI_EVERY` 只是降低显示负载，检测和 JSON 仍使用对应的处理画幅。
+
+如果 1920 档 fps 太低或命中率变差，只保留高质量插值，退回 1600：
+
+```bash
+OUT_SIZE=1600x1208 NVVIDCONV_INTERPOLATION=3 ./run_fullfov_1280x960_gui.sh
+```
+
+如果 10-tap 识别率提升但仍不够，再现场 A/B 试最慢的 `nicest`：
+
+```bash
+NVVIDCONV_INTERPOLATION=5 ./run_hq_1920x1450_gui.sh
+```
+
+判断标准不是肉眼 GUI 好看，而是同一场景同一 tag 姿态下：
+
+- `detections` 里 id=3 的连续命中率是否提高
+- `timing.display_fps` 是否还能满足采样
+- JSON 里的 `camera.nvvidconv_interpolation` 是否等于本次测试值
+- `camera.detector_preprocess` 是否仍是 `gray_blur_gamma07`
+- `is_held` 是否仍是 `false`
+
+高画质档如果导致 fps 大幅下降，就不要作为采样默认值；保留为远距离、小 tag、噪声较高场景的实验档。
+
 最近一次在 `192.168.1.80` 上确认：
 
 ```text

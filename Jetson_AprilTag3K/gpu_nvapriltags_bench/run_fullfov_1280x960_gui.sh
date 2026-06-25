@@ -27,6 +27,9 @@ fi
 if [[ -n "${TNR_STRENGTH:-}" ]]; then
   EXTRA_ARGS+=(--tnr-strength "$TNR_STRENGTH")
 fi
+if [[ -n "${NVVIDCONV_INTERPOLATION:-}" ]]; then
+  EXTRA_ARGS+=(--nvvidconv-interpolation "$NVVIDCONV_INTERPOLATION")
+fi
 
 EXISTING_PIDS="$(pgrep -f '^./nv_gpu_apriltag_bench( |$)' || true)"
 if [[ -n "$EXISTING_PIDS" ]]; then

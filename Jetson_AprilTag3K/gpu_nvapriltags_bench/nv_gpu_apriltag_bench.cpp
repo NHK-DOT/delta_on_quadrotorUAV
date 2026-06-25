@@ -29,6 +29,7 @@ struct Args {
   int tnr_mode = -1;
   float tnr_strength = -1.0f;
   float exposure_compensation = 0.0f;
+  int nvvidconv_interpolation = -1;
   int out_w = 800;
   int out_h = 604;
   int seconds = 20;
@@ -85,6 +86,7 @@ void usage(const char* argv0) {
       << "  --ispdigitalgainrange \"L H\" nvarguscamerasrc ISP digital gain range\n"
       << "  --tnr-mode N             temporal noise reduction: 0 off, 1 fast, 2 high quality\n"
       << "  --tnr-strength N         temporal noise reduction strength\n"
+      << "  --nvvidconv-interpolation N  downsample filter: 0 nearest, 1 bilinear, 2 5-tap, 3 10-tap, 4 smart, 5 nicest\n"
       << "  --out WxH                nvvidconv output size, e.g. 800x604\n"
       << "  --seconds N              measured run duration\n"
       << "  --warmup N               warmup frames\n"
@@ -244,6 +246,13 @@ bool parse_args(int argc, char** argv, Args* args) {
     } else if (key == "--tnr-strength") {
       const char* v = need_value("--tnr-strength");
       if (!v || !parse_float(v, &args->tnr_strength)) return false;
+    } else if (key == "--nvvidconv-interpolation") {
+      const char* v = need_value("--nvvidconv-interpolation");
+      if (!v || !parse_int(v, &args->nvvidconv_interpolation) ||
+          args->nvvidconv_interpolation < 0 || args->nvvidconv_interpolation > 5) {
+        std::cerr << "--nvvidconv-interpolation must be 0..5\n";
+        return false;
+      }
     } else if (key == "--out") {
       const char* v = need_value("--out");
       if (!v || !parse_size(v, &args->out_w, &args->out_h)) return false;
@@ -344,7 +353,11 @@ std::string make_pipeline(const Args& args) {
     << "video/x-raw(memory:NVMM),width=" << args.sensor_w
     << ",height=" << args.sensor_h
     << ",framerate=" << args.sensor_fps << "/1 ! "
-    << "nvvidconv flip-method=0 ! "
+    << "nvvidconv flip-method=0";
+  if (args.nvvidconv_interpolation >= 0) {
+    p << " interpolation-method=" << args.nvvidconv_interpolation;
+  }
+  p << " ! "
     << "video/x-raw,width=" << args.out_w
     << ",height=" << args.out_h
     << ",format=I420 ! "
@@ -480,6 +493,7 @@ bool write_snapshot_json(
   out << "    \"sensor_width\": " << args.sensor_w << ",\n";
   out << "    \"sensor_height\": " << args.sensor_h << ",\n";
   out << "    \"sensor_fps_request\": " << args.sensor_fps << ",\n";
+  out << "    \"nvvidconv_interpolation\": " << args.nvvidconv_interpolation << ",\n";
   out << "    \"processing_width\": " << args.out_w << ",\n";
   out << "    \"processing_height\": " << args.out_h << ",\n";
   out << "    \"pixel_mode\": \"" << pixel_mode_for_preprocess(args.preprocess) << "\",\n";

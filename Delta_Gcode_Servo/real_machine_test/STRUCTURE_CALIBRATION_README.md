@@ -45,42 +45,42 @@
 
 ```powershell
 cd C:\Users\hanjuncheng\Desktop\78arm\Delta_Gcode_Servo\real_machine_test
-python structure_calibration_sampler.py --port COM15
+python structure_calibration_sampler.py --port COM19
 ```
 
 默认端口：
 
-- 舵机总线：`COM15`
+- 舵机总线：`COM19`
 - IMU：`COM16`
 
 如果 AprilTag ID 固定，比如 `3`：
 
 ```powershell
-python structure_calibration_sampler.py --port COM15 --hand-tag-id 3
+python structure_calibration_sampler.py --port COM19 --hand-tag-id 3
 ```
 
 如果相机不是配置文件里的默认索引：
 
 ```powershell
-python structure_calibration_sampler.py --port COM15 --apriltag-camera-index 1
+python structure_calibration_sampler.py --port COM19 --apriltag-camera-index 1
 ```
 
 如果你已经手动启动了 IMU 和 AprilTag，不希望脚本自动启动后台进程：
 
 ```powershell
-python structure_calibration_sampler.py --port COM15 --no-autostart-sensors
+python structure_calibration_sampler.py --port COM19 --no-autostart-sensors
 ```
 
 如果 AprilTag 由 Jetson 3K C++ 服务和同步桥更新本机快照，可以保留只读采样脚本，不再启动本机 AprilTag 子进程：
 
 ```powershell
-python structure_calibration_sampler.py --port COM15 --no-autostart-sensors --hand-tag-id 3
+python structure_calibration_sampler.py --port COM19 --no-autostart-sensors --hand-tag-id 3
 ```
 
 如果只想减少手打标签，可以用标签队列模式。脚本仍然不会发送运动命令；每个点由你手动摆好后按回车采样：
 
 ```powershell
-python structure_calibration_sampler.py --port COM15 --no-autostart-sensors --hand-tag-id 3 `
+python structure_calibration_sampler.py --port COM19 --no-autostart-sensors --hand-tag-id 3 `
   --label-sequence top_home,bottom_safe,center_mid,left_mid,right_mid,front_mid,back_mid,left_front_mid,right_front_mid,left_back_mid,right_back_mid `
   --samples-per-label 3 --settle-sec 0.3
 ```

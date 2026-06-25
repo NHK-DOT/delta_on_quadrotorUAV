@@ -12,4 +12,8 @@ export GUI_EVERY="${GUI_EVERY:-2}"
 export GUI_HOLD_MS=0
 export OUTPUT_HOLD_MS=0
 
+# 10-tap downsample was better than default nearest in the same-scene 2026-06-24
+# A/B test, while keeping the loop near the 21 fps sensor limit.
+export NVVIDCONV_INTERPOLATION="${NVVIDCONV_INTERPOLATION:-3}"
+
 exec ./run_fullfov_1280x960_gui.sh
