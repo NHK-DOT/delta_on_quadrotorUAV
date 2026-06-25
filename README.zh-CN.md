@@ -5,6 +5,15 @@ English README: [README.md](README.md)
 开源协议：GNU GPL v3.0，见 [LICENSE](LICENSE)。上游 MIT 项目的版权声明保留在
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
+## 无人机集成照片
+
+下面这些是当前无人机挂载与相关电源、传感器、布线的集成照片。
+
+| 全平台视图 | 45 度挂载视图 | 电源分配板与线束 |
+| --- | --- | --- |
+| <img src="images/autostepper_beta_outlook.jpg" alt="无人机平台全景集成图" width="360"><br>当前的整机集成视图。 | <img src="images/45angle_base_on_drone.jpg" alt="无人机平台上的 45 度挂载" width="360"><br>机械臂以约 45 度角挂载在无人机平台上。 | <img src="images/PDBboard_and_wire.jpg" alt="电源分配板与线束" width="360"><br>集成过程中的电源分配板和线束。 |
+| <img src="images/autostepper_beta.jpg" alt="平台上的主控制与传感器安装" width="360"><br>主控制板、传感器线束和安装框架。 | <img src="images/uwb%20beacon.jpg" alt="UWB 信标模块" width="360"><br>UWB 信标模块与连接线。 |  |
+
 ## 当前主线
 
 当前现场主线以 `192.168.1.80` 的 Jetson Xavier NX 为准：

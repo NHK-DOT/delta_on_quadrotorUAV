@@ -8,6 +8,16 @@ hand-eye vision experiments, and the current real-machine Delta arm controller.
 License: GNU GPL v3.0. See [LICENSE](LICENSE). Upstream MIT notices are kept in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
+## UAV Integration Photos
+
+Current integration shots for the UAV-mounted arm and the supporting power and
+sensor stack.
+
+| Full platform integration | 45-degree base mount | Power distribution and harness |
+| --- | --- | --- |
+| <img src="images/autostepper_beta_outlook.jpg" alt="Full UAV integration view" width="360"><br>Current full-platform integration view. | <img src="images/45angle_base_on_drone.jpg" alt="UAV-mounted arm at a 45 degree angle" width="360"><br>Arm mounted at a 45 degree angle on the drone platform. | <img src="images/PDBboard_and_wire.jpg" alt="Power distribution board and wiring harness" width="360"><br>Power distribution board and wiring harness during integration. |
+| <img src="images/autostepper_beta.jpg" alt="Main control stack on the platform" width="360"><br>Main control stack, sensor wiring, and mounting frame. | <img src="images/uwb%20beacon.jpg" alt="UWB beacon module" width="360"><br>UWB beacon module and wiring. |  |
+
 Current Jetson field mainline:
 `Delta_Gcode_Servo/real_machine_test/jetson_py36/run_sampler_py36_jetson.sh`.
 It runs on the Jetson Xavier NX at `192.168.1.80` and combines 3K fisheye
