@@ -192,6 +192,24 @@ class ServoMapper(object):
             for servo_id in self.servo_ids
         }
 
+    def raw_range_violations(self, raw_positions, margin_ticks=0):
+        violations = {}
+        margin = max(0, int(margin_ticks))
+        for servo_id in self.servo_ids:
+            item = self.mappings[servo_id]
+            low = min(int(item["raw_min"]), int(item["raw_max"])) - margin
+            high = max(int(item["raw_min"]), int(item["raw_max"])) + margin
+            value = int(raw_positions[servo_id])
+            if value < low or value > high:
+                violations[servo_id] = {
+                    "raw": value,
+                    "low": low,
+                    "high": high,
+                    "configured_raw_min": int(item["raw_min"]),
+                    "configured_raw_max": int(item["raw_max"]),
+                }
+        return violations
+
 
 def quantize_raw(item, value):
     step = max(1, int(item["position_step"]))

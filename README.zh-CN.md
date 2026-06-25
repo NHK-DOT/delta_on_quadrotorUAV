@@ -216,7 +216,7 @@ PORT=/dev/ttyUSB1 HAND_TAG_ID=3 bash run_sampler_py36_jetson.sh
 - 舵机板是否能读回 servo 1/2/3 raw 和电压。
 - 当前 raw 是否接近 `lx225_tool_demo/config/lx225_tool.demo.toml` 的 `startup_check_raw`。
 
-默认启动位容差是 `25 ticks`。如果不在启动自检位，采样脚本默认拒绝启动。
+默认启动位容差是 `30 ticks`。如果 raw 明显超出配置范围，预检和采样脚本会拒绝启动；如果只是不在启动自检位附近，采样脚本会要求输入大写 `HOME`，才会慢速回到配置里的 `home_raw`。
 
 舵机驱动板 `0x15` 反馈按有符号 int16 解释。例如 `0xFF43` 应看作 `-189`，不是无符号的 `65347`。配置里有两个相关字段：
 

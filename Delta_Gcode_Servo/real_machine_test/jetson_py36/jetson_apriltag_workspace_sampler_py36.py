@@ -44,7 +44,9 @@ DEFAULT_UPDATE_RATE_HZ = 35.0
 DEFAULT_SPEED_XY_MM_S = 35.0
 DEFAULT_SPEED_Z_MM_S = 25.0
 DEFAULT_MAX_SERVO_RAW_S = 180.0
-DEFAULT_HOME_TOLERANCE_TICKS = 25
+DEFAULT_STARTUP_HOME_RAW_S = 120.0
+DEFAULT_HOME_TOLERANCE_TICKS = 30
+DEFAULT_RAW_RANGE_MARGIN_TICKS = 30
 DEFAULT_FRESH_MS = 1000.0
 DEFAULT_FEEDBACK_INTERVAL_SEC = 0.25
 DEFAULT_SERVO_TIMEOUT_SEC = 0.20
@@ -285,6 +287,75 @@ class JetsonWorkspaceSampler(object):
         errors = self.home_errors()
         return max(abs(int(value)) for value in errors.values()) <= int(self.args.home_tolerance)
 
+    def raw_range_violations(self):
+        return self.mapper.raw_range_violations(self.current_raw, margin_ticks=self.args.raw_range_margin)
+
+    def print_raw_range_violations(self, violations):
+        if not violations:
+            return
+        print("  Raw range warning:")
+        for servo_id in self.servo_ids:
+            if servo_id in violations:
+                item = violations[servo_id]
+                print(
+                    "    servo %d raw=%d outside configured range [%d,%d] +/- %d ticks"
+                    % (
+                        servo_id,
+                        item["raw"],
+                        item["configured_raw_min"],
+                        item["configured_raw_max"],
+                        self.args.raw_range_margin,
+                    )
+                )
+
+    def sync_control_state_to_feedback(self):
+        self.command_raw = dict(self.current_raw)
+        self.target_raw = dict(self.current_raw)
+        self.target_angles = list(self.current_angles)
+        self.target_position = list(self.current_position)
+        self.write_status()
+
+    def move_to_motion_home(self):
+        target_raw = dict(self.home_raw)
+        current_raw = dict(self.current_raw)
+        max_error = max(abs(int(target_raw[servo_id]) - int(current_raw[servo_id])) for servo_id in self.servo_ids)
+        if max_error <= int(self.args.home_tolerance):
+            print("Already near motion mapping home raw.")
+            return True
+        time_ms = max(500, int((max_error / max(1.0, float(self.args.startup_home_raw_s))) * 1000.0))
+        targets = [(servo_id, int(target_raw[servo_id])) for servo_id in self.servo_ids]
+        print(
+            "  HOME move command: target raw 1=%d 2=%d 3=%d, time=%d ms"
+            % (target_raw[1], target_raw[2], target_raw[3], time_ms)
+        )
+        try:
+            self.driver.set_servo_positions(targets, time_ms)
+        except Exception as exc:
+            self.fault = "startup HOME send failed: %s" % exc
+            print(self.fault)
+            self.log("STARTUP_HOME_SEND_FAILED %s" % exc)
+            return False
+        time.sleep(min(8.0, time_ms / 1000.0 + 0.5))
+        if not self.read_feedback(force=True, strict=True):
+            print(self.fault or "startup HOME feedback failed")
+            return False
+        violations = self.raw_range_violations()
+        if violations:
+            self.print_raw_range_violations(violations)
+            print("Startup HOME refused: feedback is outside configured raw range.")
+            return False
+        errors = self.mapper.home_errors(self.current_raw)
+        max_after = max(abs(int(errors[servo_id])) for servo_id in self.servo_ids)
+        print(
+            "  HOME result raw:  1=%d 2=%d 3=%d"
+            % (self.current_raw[1], self.current_raw[2], self.current_raw[3])
+        )
+        print("  HOME result errors to motion home: 1=%+d 2=%+d 3=%+d" % (errors[1], errors[2], errors[3]))
+        if max_after > int(self.args.home_tolerance):
+            print("Startup HOME did not reach configured motion home within tolerance.")
+            return False
+        return True
+
     def startup_check(self):
         print("")
         print("Startup safety check")
@@ -304,11 +375,28 @@ class JetsonWorkspaceSampler(object):
             % (self.current_raw[1], self.current_raw[2], self.current_raw[3])
         )
         print("  Home error ticks:  1=%+d 2=%+d 3=%+d" % (errors[1], errors[2], errors[3]))
+        violations = self.raw_range_violations()
+        if violations:
+            self.print_raw_range_violations(violations)
+            print("Startup refused: servo feedback is outside configured raw range.")
+            return False
         if not self.at_home():
-            print("Startup refused: arm is not near configured startup_check_raw.")
-            print("Move the arm to the startup self-check position, or rerun with --allow-not-home for expert manual sampling.")
-            if not self.args.allow_not_home:
-                return False
+            print("Startup feedback is not near configured startup_check_raw.")
+            print("Type HOME to slowly move to motion mapping home_raw, or rerun with --allow-not-home for expert manual sampling.")
+            if self.args.allow_not_home:
+                print("Continuing because --allow-not-home was set.")
+            else:
+                answer = input("Type HOME to slowly move to configured home_raw: ").strip()
+                if answer != "HOME":
+                    print("Startup HOME cancelled.")
+                    return False
+                if not self.move_to_motion_home():
+                    return False
+                errors = self.home_errors()
+                if not self.at_home():
+                    print("Startup refused: arm is still not near configured startup_check_raw.")
+                    print("Startup errors ticks: 1=%+d 2=%+d 3=%+d" % (errors[1], errors[2], errors[3]))
+                    return False
         age = snapshot_age_ms(self.args.base_camera_snapshot)
         if age is None:
             print("AprilTag snapshot is missing or has no timestamp: %s" % self.args.base_camera_snapshot)
@@ -337,11 +425,7 @@ class JetsonWorkspaceSampler(object):
                 print("Cancelled.")
                 return False
 
-        self.command_raw = dict(self.current_raw)
-        self.target_raw = dict(self.current_raw)
-        self.target_angles = list(self.current_angles)
-        self.target_position = list(self.current_position)
-        self.write_status()
+        self.sync_control_state_to_feedback()
         return True
 
     def axis_to_step(self, value, threshold=0.55):
@@ -647,6 +731,7 @@ def parse_args(argv):
     parser.add_argument("--fresh-ms", type=float, default=DEFAULT_FRESH_MS)
     parser.add_argument("--allow-stale-vision", action="store_true")
     parser.add_argument("--home-tolerance", type=int, default=DEFAULT_HOME_TOLERANCE_TICKS)
+    parser.add_argument("--raw-range-margin", type=int, default=DEFAULT_RAW_RANGE_MARGIN_TICKS)
     parser.add_argument("--allow-not-home", action="store_true")
     parser.add_argument("--no-confirm", action="store_true")
     parser.add_argument("--output-dir", default=default_output)
@@ -655,6 +740,7 @@ def parse_args(argv):
     parser.add_argument("--speed-xy-mm-s", type=float, default=DEFAULT_SPEED_XY_MM_S)
     parser.add_argument("--speed-z-mm-s", type=float, default=DEFAULT_SPEED_Z_MM_S)
     parser.add_argument("--max-servo-raw-s", type=float, default=DEFAULT_MAX_SERVO_RAW_S)
+    parser.add_argument("--startup-home-raw-s", type=float, default=DEFAULT_STARTUP_HOME_RAW_S)
     parser.add_argument("--note", default="")
     parser.add_argument("--verbose", action="store_true")
     return parser.parse_args(argv)

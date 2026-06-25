@@ -34,7 +34,8 @@ from jetson_workspace_common import (
 DEFAULT_PORT = "/dev/ttyUSB0"
 DEFAULT_BAUDRATE = 9600
 DEFAULT_FRESH_MS = 2000.0
-DEFAULT_HOME_TOLERANCE_TICKS = 25
+DEFAULT_HOME_TOLERANCE_TICKS = 30
+DEFAULT_RAW_RANGE_MARGIN_TICKS = 30
 
 
 def ok_line(name, detail):
@@ -222,6 +223,33 @@ def check_servo(results, args):
         detail = "raw 1=%d 2=%d 3=%d" % (raw[1], raw[2], raw[3])
         add_result(results, "servo_feedback", True, detail, data={"raw": raw})
 
+        range_violations = mapper.raw_range_violations(raw, margin_ticks=args.raw_range_margin)
+        if range_violations:
+            detail_items = []
+            for servo_id in mapper.servo_ids:
+                if servo_id in range_violations:
+                    item = range_violations[servo_id]
+                    detail_items.append(
+                        "%d=%d outside [%d,%d]"
+                        % (servo_id, item["raw"], item["low"], item["high"])
+                    )
+            add_result(
+                results,
+                "servo_raw_range",
+                False,
+                "; ".join(detail_items),
+                required=not args.skip_home_check,
+                data={"violations": range_violations, "margin": args.raw_range_margin},
+            )
+        else:
+            add_result(
+                results,
+                "servo_raw_range",
+                True,
+                "all feedback raw values are inside configured ranges +/- %d ticks" % args.raw_range_margin,
+                data={"margin": args.raw_range_margin},
+            )
+
         try:
             voltage_mv = driver.get_battery_voltage_mv(timeout=args.servo_timeout)
             add_result(results, "servo_battery", True, "%d mV" % voltage_mv, data={"battery_mv": voltage_mv})
@@ -265,6 +293,7 @@ def parse_args(argv):
     parser.add_argument("--hand-tag-id", type=int, default=None)
     parser.add_argument("--fresh-ms", type=float, default=DEFAULT_FRESH_MS)
     parser.add_argument("--home-tolerance", type=int, default=DEFAULT_HOME_TOLERANCE_TICKS)
+    parser.add_argument("--raw-range-margin", type=int, default=DEFAULT_RAW_RANGE_MARGIN_TICKS)
     parser.add_argument("--allow-stale-vision", action="store_true")
     parser.add_argument("--skip-vision", action="store_true")
     parser.add_argument("--skip-gamepad", action="store_true")

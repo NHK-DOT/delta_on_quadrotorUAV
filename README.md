@@ -105,6 +105,11 @@ preflight path is read-only and checks 8BitDo input, AprilTag JSON freshness,
 servo feedback, and whether servo 1/2/3 are near the configured initial
 `startup_check_raw` position.
 
+The default startup tolerance is `30 ticks`. If feedback raw is far outside the
+configured raw range, preflight and the sampler reject startup. If feedback is
+only outside the startup tolerance, the sampler asks for an explicit uppercase
+`HOME` confirmation before slowly moving to the configured `home_raw`.
+
 The xArm 1.6 controller-board `0x15` feedback is parsed as signed int16. A
 packet value such as `0xFF43` is therefore `-189`, not unsigned `65347`.
 `lx225_tool_demo/config/lx225_tool.demo.toml` keeps two related values per main
