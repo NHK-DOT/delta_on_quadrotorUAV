@@ -28,6 +28,10 @@ htmlcov/
 **/output/
 **/logs/
 *.log
+/runs/
+/yolov8n.pt
+/Dual_Camera_HandEye/yolo_training/runtime_checks/
+/Dual_Camera_HandEye/yolo_training/datasets/wrench_combined_autolabel_20260626_flight_aug/
 
 # Camera calibration results
 /AprilTag_Vision/myAprilTag/calibration/
