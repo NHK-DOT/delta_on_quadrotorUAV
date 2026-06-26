@@ -40,16 +40,20 @@ from jetson_workspace_common import (
 
 DEFAULT_PORT = "/dev/ttyUSB0"
 DEFAULT_BAUDRATE = 9600
-DEFAULT_UPDATE_RATE_HZ = 35.0
-DEFAULT_SPEED_XY_MM_S = 35.0
-DEFAULT_SPEED_Z_MM_S = 25.0
-DEFAULT_MAX_SERVO_RAW_S = 180.0
+DEFAULT_UPDATE_RATE_HZ = 40.0
+DEFAULT_SPEED_XY_MM_S = 34.0
+DEFAULT_SPEED_Z_MM_S = 20.0
+DEFAULT_MAX_SERVO_RAW_S = 160.0
 DEFAULT_STARTUP_HOME_RAW_S = 120.0
-DEFAULT_HOME_TOLERANCE_TICKS = 30
+DEFAULT_HOME_TOLERANCE_TICKS = 150
 DEFAULT_RAW_RANGE_MARGIN_TICKS = 30
 DEFAULT_FRESH_MS = 1000.0
 DEFAULT_FEEDBACK_INTERVAL_SEC = 0.25
 DEFAULT_SERVO_TIMEOUT_SEC = 0.20
+DEFAULT_FEEDBACK_READ_RETRIES = 3
+DEFAULT_Z_MIN_MM = 155.0
+DEFAULT_Z_MAX_MM = 280.0
+DEFAULT_MAX_FEEDBACK_LEAD_TICKS = 35
 
 
 def clamp(value, low, high):
@@ -163,10 +167,11 @@ class JetsonWorkspaceSampler(object):
         self.speed_xy = float(args.speed_xy_mm_s)
         self.speed_z = float(args.speed_z_mm_s)
         self.max_servo_raw_s = float(args.max_servo_raw_s)
+        self.max_feedback_lead_ticks = int(args.max_feedback_lead_ticks)
         self.feedback_interval = float(args.feedback_interval_sec)
 
         self.safe_scan_mode = "FREE"
-        self.sample_count = 0
+        self.sample_count = self.count_existing_samples()
         self.home_raw = dict(self.mapper.reference_raw)
         self.current_raw = dict(self.home_raw)
         self.command_raw = dict(self.home_raw)
@@ -211,13 +216,26 @@ class JetsonWorkspaceSampler(object):
                 "speed_xy_mm_s": self.speed_xy,
                 "speed_z_mm_s": self.speed_z,
                 "max_servo_raw_s": self.max_servo_raw_s,
+                "max_feedback_lead_ticks": self.max_feedback_lead_ticks,
+                "feedback_interval_sec": self.feedback_interval,
                 "update_rate_hz": args.update_rate_hz,
+                "z_min_mm": float(args.z_min_mm),
+                "z_max_mm": float(args.z_max_mm),
             },
             "home_raw": self.home_raw,
             "startup_check_raw": dict(self.mapper.startup_check_raw),
             "note": args.note,
         }
         write_json(self.session_json, self.session_payload)
+
+    def count_existing_samples(self):
+        if not os.path.exists(self.samples_csv):
+            return 0
+        try:
+            with open(self.samples_csv, "r", newline="", encoding="utf-8-sig") as fh:
+                return sum(1 for _ in csv.DictReader(fh))
+        except Exception:
+            return 0
 
     def log(self, message):
         try:
@@ -258,27 +276,35 @@ class JetsonWorkspaceSampler(object):
         if not force and now - self.last_feedback_time < self.feedback_interval:
             return True
         self.last_feedback_time = now
-        try:
-            raw = self.driver.read_servo_positions(self.servo_ids, timeout=self.args.servo_timeout)
-            self.current_raw = {servo_id: int(raw[servo_id]) for servo_id in self.servo_ids}
-            self.current_angles = self.mapper.raw_to_angles(self.current_raw)
-            xyz, ok = forward_kinematics(self.current_angles[0], self.current_angles[1], self.current_angles[2])
-            if ok:
-                self.current_position = list(xyz)
-            elif strict:
-                self.fault = "feedback raw cannot be converted by FK"
-                return False
-            if now - self.last_voltage_time >= 1.5:
-                self.last_voltage_time = now
-                try:
-                    self.battery_mv = self.driver.get_battery_voltage_mv(timeout=self.args.servo_timeout)
-                except Exception as exc:
-                    self.log("BATTERY_READ_FAILED %s" % exc)
-            return True
-        except Exception as exc:
-            self.fault = "servo feedback read failed: %s" % exc
-            self.log("FEEDBACK_FAILED %s" % exc)
-            return not strict
+        last_error = None
+        attempts = max(1, int(self.args.feedback_read_retries))
+        for attempt in range(attempts):
+            try:
+                raw = self.driver.read_servo_positions(self.servo_ids, timeout=self.args.servo_timeout)
+                self.current_raw = {servo_id: int(raw[servo_id]) for servo_id in self.servo_ids}
+                self.current_angles = self.mapper.raw_to_angles(self.current_raw)
+                xyz, ok = forward_kinematics(self.current_angles[0], self.current_angles[1], self.current_angles[2])
+                if ok:
+                    self.current_position = list(xyz)
+                elif strict:
+                    self.fault = "feedback raw cannot be converted by FK"
+                    return False
+                if self.fault and self.fault.startswith("servo feedback read failed"):
+                    self.fault = None
+                if now - self.last_voltage_time >= 1.5:
+                    self.last_voltage_time = now
+                    try:
+                        self.battery_mv = self.driver.get_battery_voltage_mv(timeout=self.args.servo_timeout)
+                    except Exception as exc:
+                        self.log("BATTERY_READ_FAILED %s" % exc)
+                return True
+            except Exception as exc:
+                last_error = exc
+                self.log("FEEDBACK_READ_RETRY %d/%d %s" % (attempt + 1, attempts, exc))
+                time.sleep(0.03)
+        self.fault = "servo feedback read failed: %s" % last_error
+        self.log("FEEDBACK_FAILED %s" % last_error)
+        return not strict
 
     def home_errors(self):
         return self.mapper.startup_check_errors(self.current_raw)
@@ -308,12 +334,43 @@ class JetsonWorkspaceSampler(object):
                     )
                 )
 
+    def clamp_target_position(self, position):
+        return [
+            clamp(float(position[0]), -150.0, 150.0),
+            clamp(float(position[1]), -150.0, 150.0),
+            clamp(float(position[2]), float(self.args.z_min_mm), float(self.args.z_max_mm)),
+        ]
+
+    def set_target_position(self, position):
+        target_position = self.clamp_target_position(position)
+        angles, ok = inverse_kinematics(target_position[0], target_position[1], target_position[2])
+        if not ok:
+            self.log("IK_FAIL xyz=%.3f %.3f %.3f" % (target_position[0], target_position[1], target_position[2]))
+            return False
+        self.target_position = target_position
+        self.target_angles = list(angles)
+        self.target_raw = self.clamp_raw_to_motion_limits(self.mapper.angles_to_raw(angles))
+        return True
+
     def sync_control_state_to_feedback(self):
-        self.command_raw = dict(self.current_raw)
-        self.target_raw = dict(self.current_raw)
-        self.target_angles = list(self.current_angles)
-        self.target_position = list(self.current_position)
+        self.command_raw = self.clamp_raw_to_motion_limits(self.current_raw)
+        if not self.set_target_position(self.current_position):
+            self.target_raw = dict(self.command_raw)
+            self.target_angles = list(self.current_angles)
+            self.target_position = list(self.current_position)
         self.write_status()
+
+    def clamp_raw_to_motion_limits(self, raw_values):
+        limited = {}
+        for servo_id in self.servo_ids:
+            item = self.mapper.mappings[servo_id]
+            low = min(int(item["raw_min"]), int(item["raw_max"]))
+            high = max(int(item["raw_min"]), int(item["raw_max"]))
+            home_limit = int(self.home_raw[servo_id])
+            value = int(raw_values[servo_id])
+            value = int(clamp(value, low, high))
+            limited[servo_id] = min(value, home_limit)
+        return limited
 
     def move_to_motion_home(self):
         target_raw = dict(self.home_raw)
@@ -450,6 +507,12 @@ class JetsonWorkspaceSampler(object):
             self.running = False
             return False
 
+        if buttons.get("y", False):
+            self.fault = "emergency stop requested by Y"
+            self.log("EMERGENCY_STOP_Y")
+            self.running = False
+            return False
+
         if buttons.get("x", False) and not previous.get("x", False):
             self.cycle_safe_scan()
 
@@ -477,19 +540,7 @@ class JetsonWorkspaceSampler(object):
             next_position[0] = self.target_position[0]
             next_position[1] = self.target_position[1]
 
-        next_position[0] = clamp(next_position[0], -150.0, 150.0)
-        next_position[1] = clamp(next_position[1], -150.0, 150.0)
-        next_position[2] = clamp(next_position[2], 110.0, 280.0)
-
-        angles, ok = inverse_kinematics(next_position[0], next_position[1], next_position[2])
-        if not ok:
-            self.log("IK_FAIL xyz=%.3f %.3f %.3f" % (next_position[0], next_position[1], next_position[2]))
-            return True
-
-        target_raw = self.mapper.angles_to_raw(angles)
-        self.target_position = next_position
-        self.target_angles = list(angles)
-        self.target_raw = target_raw
+        self.set_target_position(next_position)
         return True
 
     def compute_limited_command_raw(self):
@@ -506,10 +557,51 @@ class JetsonWorkspaceSampler(object):
                 value = current + (int(max_delta) if delta > 0 else -int(max_delta))
             item = self.mapper.mappings[servo_id]
             value = int(clamp(value, min(item["raw_min"], item["raw_max"]), max(item["raw_min"], item["raw_max"])))
+            value = min(value, int(self.home_raw[servo_id]))
+            if self.max_feedback_lead_ticks > 0:
+                feedback = int(self.current_raw[servo_id])
+                value = int(clamp(
+                    value,
+                    feedback - self.max_feedback_lead_ticks,
+                    feedback + self.max_feedback_lead_ticks,
+                ))
+                value = int(clamp(value, min(item["raw_min"], item["raw_max"]), max(item["raw_min"], item["raw_max"])))
+                value = min(value, int(self.home_raw[servo_id]))
             next_raw[servo_id] = value
             if value != current:
                 changed = True
+        if changed and not self.command_respects_z_floor(next_raw):
+            return dict(self.command_raw), False
         return next_raw, changed
+
+    def command_respects_z_floor(self, proposed_raw):
+        z_min = float(self.args.z_min_mm)
+        proposed_angles = self.mapper.raw_to_angles(proposed_raw)
+        proposed_position, proposed_ok = forward_kinematics(
+            proposed_angles[0], proposed_angles[1], proposed_angles[2]
+        )
+        if not proposed_ok:
+            self.log("COMMAND_FK_FAIL raw=1:%d 2:%d 3:%d" % (
+                proposed_raw[1],
+                proposed_raw[2],
+                proposed_raw[3],
+            ))
+            return False
+        if proposed_position[2] >= z_min:
+            return True
+
+        current_angles = self.mapper.raw_to_angles(self.command_raw)
+        current_position, current_ok = forward_kinematics(
+            current_angles[0], current_angles[1], current_angles[2]
+        )
+        if current_ok and proposed_position[2] > current_position[2]:
+            return True
+
+        self.log(
+            "COMMAND_Z_FLOOR_HOLD proposed_z=%.3f z_min=%.3f raw=1:%d 2:%d 3:%d"
+            % (proposed_position[2], z_min, proposed_raw[1], proposed_raw[2], proposed_raw[3])
+        )
+        return False
 
     def send_motion(self):
         next_raw, changed = self.compute_limited_command_raw()
@@ -547,6 +639,9 @@ class JetsonWorkspaceSampler(object):
         fk_xyz = finite_xyz(self.current_position)
         if vision_xyz is None or fk_xyz is None:
             print("sample refused: invalid XYZ")
+            return False
+        if fk_xyz[2] < float(self.args.z_min_mm):
+            print("sample refused: feedback z %.1f below z_min %.1f" % (fk_xyz[2], float(self.args.z_min_mm)))
             return False
         age = vision.get("snapshot_age_ms")
         if isinstance(age, (int, float)) and age > float(self.args.fresh_ms) and not self.args.allow_stale_vision:
@@ -657,6 +752,7 @@ class JetsonWorkspaceSampler(object):
         print("  Right stick Y: Z low-speed motion")
         print("  B: sample current AprilTag XYZ + servo raw")
         print("  X: cycle safe-scan FREE/X/Y/Z")
+        print("  Y: emergency stop sampler")
         print("  A: quit")
         print("Samples: %s" % self.samples_csv)
         print("Full JSONL: %s" % self.samples_jsonl)
@@ -737,10 +833,14 @@ def parse_args(argv):
     parser.add_argument("--output-dir", default=default_output)
     parser.add_argument("--update-rate-hz", type=float, default=DEFAULT_UPDATE_RATE_HZ)
     parser.add_argument("--feedback-interval-sec", type=float, default=DEFAULT_FEEDBACK_INTERVAL_SEC)
+    parser.add_argument("--feedback-read-retries", type=int, default=DEFAULT_FEEDBACK_READ_RETRIES)
     parser.add_argument("--speed-xy-mm-s", type=float, default=DEFAULT_SPEED_XY_MM_S)
     parser.add_argument("--speed-z-mm-s", type=float, default=DEFAULT_SPEED_Z_MM_S)
     parser.add_argument("--max-servo-raw-s", type=float, default=DEFAULT_MAX_SERVO_RAW_S)
+    parser.add_argument("--max-feedback-lead-ticks", type=int, default=DEFAULT_MAX_FEEDBACK_LEAD_TICKS)
     parser.add_argument("--startup-home-raw-s", type=float, default=DEFAULT_STARTUP_HOME_RAW_S)
+    parser.add_argument("--z-min-mm", type=float, default=DEFAULT_Z_MIN_MM)
+    parser.add_argument("--z-max-mm", type=float, default=DEFAULT_Z_MAX_MM)
     parser.add_argument("--note", default="")
     parser.add_argument("--verbose", action="store_true")
     return parser.parse_args(argv)

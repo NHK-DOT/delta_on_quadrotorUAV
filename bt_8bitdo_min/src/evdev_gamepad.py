@@ -23,6 +23,7 @@ except ImportError:  # pragma: no cover - Windows compile check only.
 
 EV_SYN = 0
 EV_KEY = 1
+EV_REL = 2
 EV_ABS = 3
 EV_MSC = 4
 
@@ -41,6 +42,28 @@ ABS_CODE_NAMES = {
 }
 
 KEY_CODE_NAMES = {
+    1: "KEY_ESC",
+    16: "KEY_Q",
+    17: "KEY_W",
+    18: "KEY_E",
+    30: "KEY_A",
+    31: "KEY_S",
+    32: "KEY_D",
+    44: "KEY_Z",
+    45: "KEY_X",
+    46: "KEY_C",
+    57: "KEY_SPACE",
+    103: "KEY_UP",
+    104: "KEY_PAGEUP",
+    105: "KEY_LEFT",
+    106: "KEY_RIGHT",
+    108: "KEY_DOWN",
+    109: "KEY_PAGEDOWN",
+    111: "KEY_DELETE",
+    112: "KEY_MACRO",
+    116: "KEY_POWER",
+    119: "KEY_PAUSE",
+    125: "KEY_LEFTMETA",
     304: "BTN_SOUTH",
     305: "BTN_EAST",
     306: "BTN_C",
@@ -257,15 +280,28 @@ class GamepadState(object):
     def __init__(self, config, fd=None):
         self.config = config
         self.axis_by_code = {}
+        self.key_axis_by_code = {}
         self.button_by_code = {}
         self.axes = {}
         self.buttons = {}
+        self.key_states = {}
 
         for name, spec in config.get("axes", {}).items():
             spec_copy = dict(spec)
-            code = int(spec_copy["code"])
-            self.axis_by_code[code] = (name, spec_copy)
-            self.axes[name] = int(spec_copy.get("center", spec_copy.get("min", 0)))
+            if spec_copy.get("kind") == "key_axis":
+                negative_code = int(spec_copy.get("negative_code", -1))
+                positive_code = int(spec_copy.get("positive_code", -1))
+                if negative_code >= 0:
+                    self.key_axis_by_code.setdefault(negative_code, []).append((name, -1))
+                    self.key_states[negative_code] = False
+                if positive_code >= 0:
+                    self.key_axis_by_code.setdefault(positive_code, []).append((name, 1))
+                    self.key_states[positive_code] = False
+                self.axes[name] = 0
+            else:
+                code = int(spec_copy["code"])
+                self.axis_by_code[code] = (name, spec_copy)
+                self.axes[name] = int(spec_copy.get("center", spec_copy.get("min", 0)))
 
         for name, spec in config.get("buttons", {}).items():
             spec_copy = dict(spec)
@@ -302,6 +338,21 @@ class GamepadState(object):
             self.buttons[name] = bool(value)
             return name
 
+        if event_type == EV_KEY and code in self.key_axis_by_code:
+            self.key_states[code] = bool(value)
+            updated = None
+            for axis_name, _direction in self.key_axis_by_code[code]:
+                axis_value = 0
+                for key_code, axis_items in self.key_axis_by_code.items():
+                    if not self.key_states.get(key_code, False):
+                        continue
+                    for item_axis_name, item_direction in axis_items:
+                        if item_axis_name == axis_name:
+                            axis_value += item_direction
+                self.axes[axis_name] = clamp(axis_value, -1, 1)
+                updated = axis_name
+            return updated
+
         return None
 
     def axis_value(self, name):
@@ -318,6 +369,11 @@ class GamepadState(object):
                 spec = axis_spec
                 break
         if spec is None:
+            for _code, axis_items in self.key_axis_by_code.items():
+                for axis_name, _direction in axis_items:
+                    if axis_name == name:
+                        value = float(self.axis_value(name))
+                        return clamp(-value if self._axis_inverted(name) else value, -1.0, 1.0)
             return 0.0
 
         value = float(self.axis_value(name))
@@ -341,6 +397,12 @@ class GamepadState(object):
         if bool(spec.get("invert", False)):
             normalized = -normalized
         return clamp(normalized, -1.0, 1.0)
+
+    def _axis_inverted(self, name):
+        for axis_name, spec in self.config.get("axes", {}).items():
+            if axis_name == name:
+                return bool(spec.get("invert", False))
+        return False
 
     def action_buttons(self):
         actions = {}

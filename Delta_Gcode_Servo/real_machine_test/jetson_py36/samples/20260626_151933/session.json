@@ -1,0 +1,42 @@
+{
+  "created_iso": "2026-06-26T15:31:30",
+  "created_unix": 1782459090.5905087,
+  "mode": "jetson_py36_apriltag_8bitdo_workspace_sampler",
+  "units": "mm/raw/radian",
+  "files": {
+    "samples_csv": "/home/nvidia/Desktop/78arm/Delta_Gcode_Servo/real_machine_test/jetson_py36/samples/20260626_151933/samples.csv",
+    "samples_jsonl": "/home/nvidia/Desktop/78arm/Delta_Gcode_Servo/real_machine_test/jetson_py36/samples/20260626_151933/samples.jsonl",
+    "runtime_status": "/home/nvidia/Desktop/78arm/Delta_Gcode_Servo/real_machine_test/jetson_py36/samples/20260626_151933/runtime_status.log",
+    "debug_log": "/home/nvidia/Desktop/78arm/Delta_Gcode_Servo/real_machine_test/jetson_py36/samples/20260626_151933/debug.log"
+  },
+  "inputs": {
+    "base_camera_snapshot": "/home/nvidia/Desktop/yolo_fisheye_calibration_jetson/output/apriltag_latest_jetson.json",
+    "calibration": "/home/nvidia/Desktop/78arm/Dual_Camera_HandEye/output/calibration_result.json",
+    "servo_config": "/home/nvidia/Desktop/78arm/lx225_tool_demo/config/lx225_tool.demo.toml",
+    "gamepad_config": "/home/nvidia/Desktop/78arm/bt_8bitdo_min/config/gamepad_8bitdo_bt.json",
+    "hand_tag_id": 3
+  },
+  "control": {
+    "port": "/dev/ttyUSB0",
+    "baudrate": 9600,
+    "speed_xy_mm_s": 34.0,
+    "speed_z_mm_s": 20.0,
+    "max_servo_raw_s": 160.0,
+    "max_feedback_lead_ticks": 35,
+    "feedback_interval_sec": 0.25,
+    "update_rate_hz": 40.0,
+    "z_min_mm": 155.0,
+    "z_max_mm": 280.0
+  },
+  "home_raw": {
+    "1": 750,
+    "2": 762,
+    "3": 758
+  },
+  "startup_check_raw": {
+    "1": 750,
+    "2": 762,
+    "3": 758
+  },
+  "note": ""
+}

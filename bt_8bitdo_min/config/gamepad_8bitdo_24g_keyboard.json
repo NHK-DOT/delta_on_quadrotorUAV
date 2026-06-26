@@ -1,0 +1,67 @@
+{
+  "profile": "8bitdo_ultimate_2_wireless_24g_keyboard",
+  "device": {
+    "name_contains": "8BitDo Ultimate 2 Wireless Controller for PC",
+    "bus": "0003",
+    "vendor": "2dc8",
+    "product": "310b",
+    "device_path": "/dev/input/event9"
+  },
+  "axes": {
+    "dpad_x": {
+      "kind": "key_axis",
+      "negative_code": 105,
+      "negative_linux": "KEY_LEFT",
+      "positive_code": 106,
+      "positive_linux": "KEY_RIGHT",
+      "invert": false
+    },
+    "dpad_y": {
+      "kind": "key_axis",
+      "negative_code": 103,
+      "negative_linux": "KEY_UP",
+      "positive_code": 108,
+      "positive_linux": "KEY_DOWN",
+      "invert": false
+    },
+    "right_y": {
+      "kind": "key_axis",
+      "negative_code": 109,
+      "negative_linux": "KEY_PAGEDOWN",
+      "positive_code": 104,
+      "positive_linux": "KEY_PAGEUP",
+      "invert": false
+    }
+  },
+  "buttons": {
+    "south": {"code": 57, "linux": "KEY_SPACE", "xbox": "A"},
+    "east": {"code": 45, "linux": "KEY_X", "xbox": "B"},
+    "west": {"code": 44, "linux": "KEY_Z", "xbox": "X"},
+    "north": {"code": 46, "linux": "KEY_C", "xbox": "Y"},
+    "lb": {"code": 30, "linux": "KEY_A", "xbox": "LB"},
+    "rb": {"code": 32, "linux": "KEY_D", "xbox": "RB"}
+  },
+  "actions": {
+    "quit": "south",
+    "record": "east",
+    "safe_scan": "west",
+    "sensor_frame": "north",
+    "tooling_close": "lb",
+    "tooling_open": "rb"
+  },
+  "legacy_control": {
+    "axes": {
+      "x": {"source": "dpad_x", "scale": 1.0},
+      "y": {"source": "dpad_y", "scale": 1.0},
+      "z": {"source": "right_y", "scale": -1.0}
+    },
+    "buttons": {
+      "a": ["south"],
+      "b": ["east"],
+      "x": ["west"],
+      "y": ["north"],
+      "lb": ["lb"],
+      "rb": ["rb"]
+    }
+  }
+}
