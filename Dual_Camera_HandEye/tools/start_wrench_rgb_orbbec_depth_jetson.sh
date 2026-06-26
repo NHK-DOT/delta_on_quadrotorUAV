@@ -24,6 +24,7 @@ nohup python3 scripts/trt_yolo_server.py \
   --width 640 --height 480 --camera-fps 30 --fourcc MJPG \
   --infer-fps 30 --display-fps 20 --capture-thread \
   --label wrench --conf 0.25 --iou 0.45 \
+  --max-detections 1 \
   --depth-json "${DEPTH_JSON}" --depth-max-age 1.0 \
   --camera-hfov-deg 67 --camera-vfov-deg 52 \
   --host 0.0.0.0 --port "${PORT}" \

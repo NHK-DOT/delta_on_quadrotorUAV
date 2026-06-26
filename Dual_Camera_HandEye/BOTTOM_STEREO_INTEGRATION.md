@@ -163,6 +163,9 @@ This starts:
 /home/nvidia/vision_starter/scripts/trt_yolo_server.py -> http://127.0.0.1:8090/
 ```
 
+The wrench preview is started with `--max-detections 1`, so the screen and
+`latest.json` keep only the highest-confidence wrench box.
+
 The live API is:
 
 ```text
