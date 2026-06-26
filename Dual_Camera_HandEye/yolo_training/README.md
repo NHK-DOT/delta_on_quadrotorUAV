@@ -72,6 +72,21 @@ python Dual_Camera_HandEye/yolo_training/train_wrench_flight_aug.py \
 For Jetson TensorRT 7 deployment, export ONNX first on the training machine,
 then rebuild the TensorRT engine on the Jetson that will run it.
 
+## Current autolabel run
+
+The first static pseudo-labeled run is in:
+
+```text
+Dual_Camera_HandEye/yolo_training/datasets/wrench_autolabel_20260626
+Dual_Camera_HandEye/yolo_training/datasets/wrench_autolabel_20260626_flight_aug
+```
+
+Use `wrench_autolabel_20260626_qc_contact_sheet.jpg` to inspect a sample of
+the current boxes before training. This run is useful for bootstrapping, but it
+is mostly one close, cropped wrench pose, so collect more varied motion,
+distance, background, and no-wrench negative frames before trusting a new model
+for flight.
+
 ## Evaluation target
 
 Do not judge only by mAP. Also run a field validation clip and check:
