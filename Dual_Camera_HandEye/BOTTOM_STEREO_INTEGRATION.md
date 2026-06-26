@@ -172,3 +172,45 @@ http://127.0.0.1:8090/latest.json
 The current `position_camera_m` field is in the lower Orbbec RGB camera frame.
 It uses an approximate FOV projection until real RGB intrinsics and
 `tool_T_bottom_stereo` are calibrated.
+
+## Fused pose for the main controller
+
+The controller should not consume the raw lower-camera `position_camera_m`
+directly. The fused pose is:
+
+```text
+base_T_wrench =
+    base_T_tool
+  * tool_T_bottom_stereo
+  * bottom_stereo_T_wrench
+```
+
+For the current code path, `tool_T_bottom_stereo` is supplied by the calibration
+entry named `object_camera` until the real bottom-camera hand-eye result is
+replaced.
+
+Start the fused pose publisher after the RGB+depth service is running:
+
+```bash
+cd ~/Desktop/78arm
+bash Dual_Camera_HandEye/tools/start_fused_wrench_pose_publisher_jetson.sh
+```
+
+It writes:
+
+```text
+Dual_Camera_HandEye/output/fused_wrench_pose_latest.json
+```
+
+To send the same fused pose to the main controller over UDP:
+
+```bash
+CONTROL_UDP_HOST=<main-controller-ip> \
+CONTROL_UDP_PORT=<main-controller-port> \
+BASE_TOOL_JSON=Dual_Camera_HandEye/output/base_tool_from_camera.json \
+bash Dual_Camera_HandEye/tools/start_fused_wrench_pose_publisher_jetson.sh
+```
+
+The publisher only sends UDP packets when both `CONTROL_UDP_HOST` and
+`CONTROL_UDP_PORT` are set. Without them, it stays in local-file output mode for
+verification.
