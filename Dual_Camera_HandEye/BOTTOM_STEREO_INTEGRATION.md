@@ -214,3 +214,24 @@ bash Dual_Camera_HandEye/tools/start_fused_wrench_pose_publisher_jetson.sh
 The publisher only sends UDP packets when both `CONTROL_UDP_HOST` and
 `CONTROL_UDP_PORT` are set. Without them, it stays in local-file output mode for
 verification.
+
+## Rough Image Follow Preview
+
+Before commanding the arm to follow the wrench, verify image-follow sign and
+gain without servo motion:
+
+```bash
+cd ~/Desktop/78arm
+python3 Dual_Camera_HandEye/tools/wrench_image_follow_preview.py --samples 50
+```
+
+The output is only a proposed XY step:
+
+```text
+FOLLOW_PREVIEW conf=0.49 err=(+0.12,-0.30) z=0.273m step_xy_mm=(+0.77,-1.85)
+```
+
+Use `--invert-x` or `--invert-y` if the proposed direction is opposite to the
+expected camera-centering direction. Real servo motion should stay XY-only,
+low-speed, Z-locked, and stop immediately when the detector becomes stale or
+the target is lost.
