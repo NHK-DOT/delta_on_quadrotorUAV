@@ -148,3 +148,27 @@ XYZ. If `/dev/video1` disappears after SDK tests, reload the UVC driver:
 sudo modprobe -r uvcvideo
 sudo modprobe uvcvideo
 ```
+
+To start the current fused wrench preview on the Jetson:
+
+```bash
+cd ~/Desktop/78arm/Dual_Camera_HandEye
+bash tools/start_wrench_rgb_orbbec_depth_jetson.sh
+```
+
+This starts:
+
+```text
+/home/nvidia/orbbec_sdk/depth_grid_daemon -> /tmp/orbbec_depth_grid.json
+/home/nvidia/vision_starter/scripts/trt_yolo_server.py -> http://127.0.0.1:8090/
+```
+
+The live API is:
+
+```text
+http://127.0.0.1:8090/latest.json
+```
+
+The current `position_camera_m` field is in the lower Orbbec RGB camera frame.
+It uses an approximate FOV projection until real RGB intrinsics and
+`tool_T_bottom_stereo` are calibrated.
