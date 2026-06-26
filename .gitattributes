@@ -5,3 +5,4 @@ Jetson_AprilTag3K/**/*.sh text eol=lf
 Jetson_AprilTag3K/**/*.py text eol=lf
 Jetson_Vision_Export/yolo_fisheye_calibration_jetson/*.sh text eol=lf
 Jetson_Vision_Export/yolo_fisheye_calibration_jetson/*.py text eol=lf
+Dual_Camera_HandEye/**/*.sh text eol=lf

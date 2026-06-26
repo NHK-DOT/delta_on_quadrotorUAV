@@ -97,3 +97,54 @@ bash tools/run_orbbec_depth_probe_jetson.sh
 Expected successful output includes a device count, the DaBai DCW2 serial
 number, available depth profiles, and one depth frame summary. The first tested
 depth mode was `640x400@15fps`.
+
+For an on-screen depth view on the Jetson display:
+
+```bash
+cd ~/Desktop/78arm/Dual_Camera_HandEye
+export DISPLAY=:0
+export XAUTHORITY=/home/nvidia/.Xauthority
+bash tools/run_orbbec_depth_fast_preview_jetson.sh
+```
+
+## Current FPS split
+
+The DaBai DCW2 depth stream is currently limited by the OrbbecSDK profiles to
+`640x400@15fps`. That is enough for calibration and 3D tool localization as
+long as motion is slow and each RGB detection uses the nearest timestamped
+depth frame.
+
+The previous 30 fps path is the RGB recognition path, not the depth path:
+
+```text
+/dev/video1 -> V4L2 MJPG 640x480@30fps -> TensorRT .engine
+```
+
+On 2026-06-26, `vision_starter` benchmarked the wrench TensorRT engine with:
+
+```bash
+cd ~/vision_starter
+python3 scripts/benchmark_trt_camera.py \
+  --engine models/wrench_320_trt7_fp16.engine \
+  --source /dev/video1 \
+  --width 640 --height 480 --fps 30 --fourcc MJPG --frames 120
+```
+
+Measured result:
+
+```text
+frames=120 elapsed=4.033s end_to_end_fps=29.8
+capture_ms=20.157
+preprocess_ms=3.264
+infer_ms=8.894
+postprocess_ms=1.275
+```
+
+Practical plan: run wrench detection on RGB at about 30 fps, then attach the
+latest valid 15 fps depth sample around the detected wrench center for metric
+XYZ. If `/dev/video1` disappears after SDK tests, reload the UVC driver:
+
+```bash
+sudo modprobe -r uvcvideo
+sudo modprobe uvcvideo
+```
