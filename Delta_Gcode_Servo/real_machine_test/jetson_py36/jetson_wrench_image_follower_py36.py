@@ -57,6 +57,7 @@ class WrenchImageFollower(object):
         self.last_feedback = 0.0
         self.last_seen = 0.0
         self.ik_failures = 0
+        self.filtered_error = None
 
     def connect(self):
         print("Opening servo %s @ %d" % (self.args.port, self.args.baudrate))
@@ -190,6 +191,14 @@ class WrenchImageFollower(object):
         norm = target.get("normalized_xy") or {}
         ex = float(norm.get("x", 0.0))
         ey = float(norm.get("y", 0.0))
+        if 0.0 < float(self.args.error_alpha) < 1.0:
+            if self.filtered_error is None:
+                self.filtered_error = [ex, ey]
+            else:
+                alpha = float(self.args.error_alpha)
+                self.filtered_error[0] = alpha * ex + (1.0 - alpha) * self.filtered_error[0]
+                self.filtered_error[1] = alpha * ey + (1.0 - alpha) * self.filtered_error[1]
+            ex, ey = self.filtered_error
         if abs(ex) < float(self.args.deadband):
             ex = 0.0
         if abs(ey) < float(self.args.deadband):
@@ -274,6 +283,7 @@ def parse_args():
     parser.add_argument("--feedback-interval-sec", type=float, default=0.20)
     parser.add_argument("--gain-mm-per-norm", type=float, default=5.0)
     parser.add_argument("--max-step-mm", type=float, default=0.8)
+    parser.add_argument("--error-alpha", type=float, default=0.45, help="Low-pass factor for detector image error; 1 disables smoothing.")
     parser.add_argument("--deadband", type=float, default=0.08)
     parser.add_argument("--min-conf", type=float, default=0.25)
     parser.add_argument("--max-age-sec", type=float, default=0.50)
