@@ -4,6 +4,7 @@ set -euo pipefail
 VISION_DIR="${VISION_DIR:-/home/nvidia/vision_starter}"
 DEPTH_START="${DEPTH_START:-/home/nvidia/orbbec_sdk/start_depth_grid.sh}"
 DEPTH_JSON="${DEPTH_JSON:-/tmp/orbbec_depth_grid.json}"
+ENGINE="${ENGINE:-models/wrench_combined_20260626_320_trt7_fp16.engine}"
 PORT="${PORT:-8090}"
 
 cd "${VISION_DIR}"
@@ -19,7 +20,7 @@ fi
 "${DEPTH_START}" >/tmp/start_orbbec_depth_grid.out
 
 nohup python3 scripts/trt_yolo_server.py \
-  --engine models/wrench_320_trt7_fp16.engine \
+  --engine "${ENGINE}" \
   --source /dev/video1 \
   --width 640 --height 480 --camera-fps 30 --fourcc MJPG \
   --infer-fps 30 --display-fps 20 --capture-thread \

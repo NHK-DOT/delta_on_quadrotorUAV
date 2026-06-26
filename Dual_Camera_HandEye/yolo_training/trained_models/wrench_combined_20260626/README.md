@@ -33,5 +33,9 @@ Local smoke test on the current camera frame:
 - old live TensorRT engine: about `0.85` confidence
 - this new checkpoint at 640: `0.9366` confidence
 
-Next deployment step is to copy the 320 ONNX to the Jetson and rebuild the
-TensorRT 7 FP16 engine there before switching the live detector.
+Jetson deployment status:
+
+- ONNX copied to `/home/nvidia/vision_starter/models/wrench_combined_20260626_320.onnx`.
+- TensorRT 7 FP16 engine built as `/home/nvidia/vision_starter/models/wrench_combined_20260626_320_trt7_fp16.engine`.
+- Live detector on port `8090` was switched to the new engine.
+- 50-frame live check after switch: `50/50` valid, average confidence `0.8998`, average FPS `29.2`.
