@@ -141,6 +141,31 @@ class WrenchImageFollower(object):
             clamp(float(xyz[2]), float(self.args.z_min_mm), float(self.args.z_max_mm)),
         ]
         angles, ok = inverse_kinematics(target[0], target[1], target[2])
+        if not ok and int(self.args.ik_retreat_steps) > 0:
+            original = list(target)
+            for step in range(1, int(self.args.ik_retreat_steps) + 1):
+                retreat_scale = max(0.45, 1.0 - 0.04 * step)
+                retreat_z = clamp(
+                    original[2] - float(self.args.ik_retreat_z_step_mm) * step,
+                    float(self.args.z_min_mm),
+                    float(self.args.z_max_mm),
+                )
+                candidate = [original[0] * retreat_scale, original[1] * retreat_scale, retreat_z]
+                angles, ok = inverse_kinematics(candidate[0], candidate[1], candidate[2])
+                if ok:
+                    print(
+                        "IK_RETREAT from=(%.2f,%.2f,%.2f) to=(%.2f,%.2f,%.2f)"
+                        % (
+                            original[0],
+                            original[1],
+                            original[2],
+                            candidate[0],
+                            candidate[1],
+                            candidate[2],
+                        )
+                    )
+                    target = candidate
+                    break
         if not ok:
             self.ik_failures += 1
             print("IK_FAIL target=(%.2f,%.2f,%.2f)" % (target[0], target[1], target[2]))
@@ -318,8 +343,10 @@ def parse_args():
     parser.add_argument("--max-z-step-mm", type=float, default=0.18)
     parser.add_argument("--max-servo-raw-s", type=float, default=80.0)
     parser.add_argument("--max-feedback-lead-ticks", type=int, default=25)
-    parser.add_argument("--soft-xy-radius-mm", type=float, default=85.0)
-    parser.add_argument("--max-ik-failures", type=int, default=5)
+    parser.add_argument("--soft-xy-radius-mm", type=float, default=115.0)
+    parser.add_argument("--max-ik-failures", type=int, default=12)
+    parser.add_argument("--ik-retreat-steps", type=int, default=8)
+    parser.add_argument("--ik-retreat-z-step-mm", type=float, default=4.0)
     parser.add_argument("--gamepad-config", default=DEFAULT_GAMEPAD_CONFIG)
     parser.add_argument("--gamepad-device", default="")
     parser.add_argument("--no-gamepad", action="store_true")

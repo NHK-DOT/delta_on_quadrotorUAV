@@ -9,8 +9,6 @@ Sampling is added on top: press the sample button to record current servo
 feedback, FK pose, AprilTag base_T_tool pose, and the vision-minus-FK offset.
 """
 
-from __future__ import annotations
-
 import argparse
 import csv
 import json
@@ -20,7 +18,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, TextIO
+from typing import Any, Dict, List, Optional, TextIO, Union
 
 import numpy as np
 
@@ -54,7 +52,7 @@ def now_iso() -> str:
     return datetime.now().isoformat(timespec="seconds")
 
 
-def read_json(path: Path) -> dict[str, Any] | None:
+def read_json(path: Path) -> Optional[Dict[str, Any]]:
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
@@ -62,14 +60,14 @@ def read_json(path: Path) -> dict[str, Any] | None:
     return payload if isinstance(payload, dict) else None
 
 
-def append_jsonl(path: Path, payload: dict[str, Any]) -> None:
+def append_jsonl(path: Path, payload: Dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("a", encoding="utf-8") as fh:
         fh.write(json.dumps(payload, ensure_ascii=False, separators=(",", ":")))
         fh.write("\n")
 
 
-def append_csv(path: Path, row: dict[str, Any]) -> None:
+def append_csv(path: Path, row: Dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     exists = path.exists()
     with path.open("a", encoding="utf-8", newline="") as fh:
@@ -79,7 +77,7 @@ def append_csv(path: Path, row: dict[str, Any]) -> None:
         writer.writerow(row)
 
 
-def snapshot_age_ms(path: Path) -> float | None:
+def snapshot_age_ms(path: Path) -> Optional[float]:
     payload = read_json(path)
     if payload is None:
         return None
@@ -89,7 +87,7 @@ def snapshot_age_ms(path: Path) -> float | None:
     return max(0.0, (time.time() - float(timestamp)) * 1000.0)
 
 
-def start_process(name: str, command: list[str], cwd: Path, log_dir: Path, env: dict[str, str] | None = None) -> ManagedProcess:
+def start_process(name: str, command: List[str], cwd: Path, log_dir: Path, env: Optional[Dict[str, str]] = None) -> ManagedProcess:
     log_dir.mkdir(parents=True, exist_ok=True)
     log_file = (log_dir / f"{name}.log").open("a", encoding="utf-8", buffering=1)
     log_file.write(f"\n# {now_iso()} start: {' '.join(command)}\n")
@@ -105,7 +103,7 @@ def start_process(name: str, command: list[str], cwd: Path, log_dir: Path, env: 
     return ManagedProcess(name=name, process=process, log_file=log_file)
 
 
-def stop_processes(processes: list[ManagedProcess]) -> None:
+def stop_processes(processes: List[ManagedProcess]) -> None:
     for item in reversed(processes):
         proc = item.process
         if proc.poll() is None:
@@ -140,7 +138,7 @@ def wait_for_fresh_snapshot(path: Path, *, max_age_ms: float, timeout_sec: float
     return False
 
 
-def install_8bitdo_reader(controller: RealTimeArmController, *, config_path: Path, device_path: str | None) -> None:
+def install_8bitdo_reader(controller: RealTimeArmController, *, config_path: Path, device_path: Optional[str]) -> None:
     if str(BT_8BITDO_SRC) not in sys.path:
         sys.path.insert(0, str(BT_8BITDO_SRC))
     from evdev_gamepad import BluetoothGamepadReader
@@ -159,7 +157,7 @@ def install_8bitdo_reader(controller: RealTimeArmController, *, config_path: Pat
         raise RuntimeError(f"8BitDo gamepad unavailable: {controller.gamepad.last_error}")
 
 
-def serializable_xyz(value: np.ndarray | list[float] | None) -> list[float] | None:
+def serializable_xyz(value: Optional[Union[np.ndarray, List[float]]]) -> Optional[List[float]]:
     if value is None:
         return None
     arr = np.asarray(value, dtype=float)
@@ -189,6 +187,9 @@ class AprilTagWorkspaceSamplerController(RealTimeArmController):
         self.speed_xy = float(sampler_args.speed_xy_mm_s)
         self.speed_z = float(sampler_args.speed_z_mm_s)
         self.max_servo_speed_ticks_per_sec = float(sampler_args.max_servo_speed_ticks_s)
+        self.playback_speed_mm_per_sec = float(sampler_args.playback_speed_mm_s)
+        self.playback_step_mm = float(sampler_args.playback_step_mm)
+        self.playback_endpoint_tolerance_mm = float(sampler_args.playback_endpoint_tolerance_mm)
         self.sample_on_b = True
         self.operator_note = sampler_args.note
         self.write_session_file()
@@ -223,7 +224,7 @@ class AprilTagWorkspaceSamplerController(RealTimeArmController):
         }
         write_json(self.session_path, payload)
 
-    def update_vision_tool_preview(self, *, force: bool = False) -> dict[str, Any] | None:
+    def update_vision_tool_preview(self, *, force: bool = False) -> Optional[Dict[str, Any]]:
         now = time.perf_counter()
         if not force and now - self.last_vision_tool_preview_time < self.vision_tool_preview_interval:
             return self.vision_tool_preview
@@ -252,8 +253,7 @@ class AprilTagWorkspaceSamplerController(RealTimeArmController):
         self.record_apriltag_workspace_sample(label=f"sample_{self.record_count + 1:04d}")
 
     def play_last_sample_segment(self) -> bool:
-        print("Sample playback is disabled in AprilTag workspace sampling mode.")
-        return False
+        return super().play_last_sample_segment()
 
     def record_apriltag_workspace_sample(self, *, label: str) -> bool:
         payload = self.update_vision_tool_preview(force=True)
@@ -389,7 +389,7 @@ class AprilTagWorkspaceSamplerController(RealTimeArmController):
         self.update_vision_tool_preview(force=True)
         print("")
         print("Start AprilTag workspace sampling control.")
-        print("8BitDo: D-pad -> X/Y, right stick Y -> Z, A -> quit, B -> sample.")
+        print("8BitDo: D-pad -> X/Y, right stick Y -> Z, A -> quit, B -> sample, START -> play last sample segment.")
         print("X -> safe scan axis, Y -> sensor frame mode, LB/RB -> tooling servo if configured.")
         print(f"Samples: {self.sample_csv_path}")
         print(f"Full JSONL: {self.sample_jsonl_path}")
@@ -428,7 +428,7 @@ class AprilTagWorkspaceSamplerController(RealTimeArmController):
             self.cleanup()
 
 
-def maybe_start_jetson_apriltag(args: argparse.Namespace) -> list[ManagedProcess]:
+def maybe_start_jetson_apriltag(args: argparse.Namespace) -> List[ManagedProcess]:
     if args.no_autostart_apriltag:
         return []
     if not args.apriltag_launch.exists():
@@ -452,7 +452,7 @@ def maybe_start_jetson_apriltag(args: argparse.Namespace) -> list[ManagedProcess
     ]
 
 
-def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+def parse_args(argv: Optional[List[str]] = None) -> argparse.Namespace:
     default_output_dir = THIS_DIR / "apriltag_workspace_samples"
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--port", default="/dev/ttyUSB0")
@@ -467,6 +467,9 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--speed-xy-mm-s", type=float, default=35.0)
     parser.add_argument("--speed-z-mm-s", type=float, default=25.0)
     parser.add_argument("--max-servo-speed-ticks-s", type=float, default=180.0)
+    parser.add_argument("--playback-speed-mm-s", type=float, default=35.0)
+    parser.add_argument("--playback-step-mm", type=float, default=1.5)
+    parser.add_argument("--playback-endpoint-tolerance-mm", type=float, default=22.0)
     parser.add_argument("--gamepad-backend", choices=["8bitdo", "pygame"], default="8bitdo")
     parser.add_argument("--gamepad-config", type=Path, default=DEFAULT_8BITDO_CONFIG)
     parser.add_argument("--gamepad-device", default="")
@@ -477,10 +480,10 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def main(argv: list[str] | None = None) -> int:
+def main(argv: Optional[List[str]] = None) -> int:
     args = parse_args(argv)
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    managed: list[ManagedProcess] = []
+    managed: List[ManagedProcess] = []
     try:
         managed = maybe_start_jetson_apriltag(args)
         wait_for_fresh_snapshot(
