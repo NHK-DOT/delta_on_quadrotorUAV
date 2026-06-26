@@ -1,0 +1,5 @@
+path: Dual_Camera_HandEye/yolo_training/datasets/wrench_motion_autolabel_20260626_214357_flight_aug
+train: images/train
+val: images/val
+nc: 1
+names: ['wrench']
