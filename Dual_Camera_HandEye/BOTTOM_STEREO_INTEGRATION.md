@@ -71,3 +71,29 @@ model_z_ge_155/rigid_alignment_report.json
 as a coarse prior only. Its RMS residual is about 40 mm, so it should not be
 used as the final precision hand-eye transform.
 
+## Orbbec DaBai DCW2 bring-up
+
+On the Jetson, the bottom stereo/depth camera is detected as:
+
+```text
+RGB UVC: /dev/video1
+Depth SDK device: DaBai DCW2, serial CH8J945001W
+```
+
+RGB can be opened through OpenCV/V4L2. Depth uses OrbbecSDK, not the RealSense
+stack. The tested SDK package is:
+
+```text
+OrbbecSDK_v1.10.5_arm64.deb
+```
+
+After installation, run the headless depth probe:
+
+```bash
+cd ~/Desktop/78arm/Dual_Camera_HandEye
+bash tools/run_orbbec_depth_probe_jetson.sh
+```
+
+Expected successful output includes a device count, the DaBai DCW2 serial
+number, available depth profiles, and one depth frame summary. The first tested
+depth mode was `640x400@15fps`.
