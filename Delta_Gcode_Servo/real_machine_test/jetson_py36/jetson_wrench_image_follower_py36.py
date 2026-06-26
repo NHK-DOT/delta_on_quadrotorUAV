@@ -56,6 +56,7 @@ class WrenchImageFollower(object):
         self.locked_z = None
         self.last_feedback = 0.0
         self.last_seen = 0.0
+        self.ik_failures = 0
 
     def connect(self):
         print("Opening servo %s @ %d" % (self.args.port, self.args.baudrate))
@@ -125,15 +126,28 @@ class WrenchImageFollower(object):
         return limited
 
     def set_target_position(self, xyz):
+        target_x = float(xyz[0])
+        target_y = float(xyz[1])
+        radius = math.sqrt(target_x * target_x + target_y * target_y)
+        if self.args.soft_xy_radius_mm > 0 and radius > float(self.args.soft_xy_radius_mm):
+            scale = float(self.args.soft_xy_radius_mm) / max(1e-6, radius)
+            target_x *= scale
+            target_y *= scale
+            print("SOFT_XY_LIMIT radius=%.1f limit=%.1f" % (radius, float(self.args.soft_xy_radius_mm)))
         target = [
-            clamp(float(xyz[0]), -150.0, 150.0),
-            clamp(float(xyz[1]), -150.0, 150.0),
+            clamp(target_x, -150.0, 150.0),
+            clamp(target_y, -150.0, 150.0),
             clamp(float(xyz[2]), float(self.args.z_min_mm), float(self.args.z_max_mm)),
         ]
         angles, ok = inverse_kinematics(target[0], target[1], target[2])
         if not ok:
+            self.ik_failures += 1
             print("IK_FAIL target=(%.2f,%.2f,%.2f)" % (target[0], target[1], target[2]))
+            if self.ik_failures >= int(self.args.max_ik_failures):
+                print("STOP repeated IK failures")
+                self.running = False
             return False
+        self.ik_failures = 0
         self.target_position = target
         self.target_raw = self.clamp_raw_to_limits(self.mapper.angles_to_raw(angles))
         return True
@@ -269,6 +283,8 @@ def parse_args():
     parser.add_argument("--z-max-mm", type=float, default=280.0)
     parser.add_argument("--max-servo-raw-s", type=float, default=80.0)
     parser.add_argument("--max-feedback-lead-ticks", type=int, default=25)
+    parser.add_argument("--soft-xy-radius-mm", type=float, default=85.0)
+    parser.add_argument("--max-ik-failures", type=int, default=5)
     parser.add_argument("--gamepad-config", default=DEFAULT_GAMEPAD_CONFIG)
     parser.add_argument("--gamepad-device", default="")
     parser.add_argument("--no-gamepad", action="store_true")
