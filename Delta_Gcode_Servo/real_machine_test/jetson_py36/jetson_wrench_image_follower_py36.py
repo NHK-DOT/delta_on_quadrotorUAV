@@ -187,7 +187,7 @@ class WrenchImageFollower(object):
         _x, _y, _z, buttons = self.gamepad.read()
         return bool(buttons.get("y") or buttons.get("a"))
 
-    def compute_image_step(self, target):
+    def compute_image_step(self, target, image):
         norm = target.get("normalized_xy") or {}
         ex = float(norm.get("x", 0.0))
         ey = float(norm.get("y", 0.0))
@@ -212,7 +212,20 @@ class WrenchImageFollower(object):
             scale = float(self.args.max_step_mm) / mag
             dx *= scale
             dy *= scale
-        return ex, ey, dx, dy
+        dz = 0.0
+        size_error = 0.0
+        if self.args.enable_z_size_follow:
+            box = target.get("box") or {}
+            image_h = float((image or {}).get("h", 0.0) or (image or {}).get("height", 0.0) or 0.0)
+            box_h = float(box.get("h", 0.0) or 0.0)
+            if image_h > 1.0 and box_h > 1.0:
+                height_frac = box_h / image_h
+                size_error = height_frac - float(self.args.target_box_height_frac)
+                if abs(size_error) < float(self.args.z_size_deadband):
+                    size_error = 0.0
+                dz = float(self.args.z_gain_mm_per_frac) * size_error
+                dz = clamp(dz, -float(self.args.max_z_step_mm), float(self.args.max_z_step_mm))
+        return ex, ey, dx, dy, dz, size_error
 
     def update_target_from_wrench(self):
         try:
@@ -226,13 +239,20 @@ class WrenchImageFollower(object):
         if not latest.get("valid") or not target or age > float(self.args.max_age_sec) or conf < float(self.args.min_conf):
             print("HOLD target_valid=%s age=%.3f conf=%.3f" % (bool(target), age, conf))
             return False
-        ex, ey, dx, dy = self.compute_image_step(target)
-        next_xyz = [self.target_position[0] + dx, self.target_position[1] + dy, self.locked_z]
+        ex, ey, dx, dy, dz, size_error = self.compute_image_step(target, latest.get("image") or latest.get("processing_frame"))
+        target_z = self.locked_z
+        if self.args.enable_z_size_follow:
+            target_z = clamp(
+                self.target_position[2] + dz,
+                float(self.args.z_min_mm),
+                float(self.args.z_max_mm),
+            )
+        next_xyz = [self.target_position[0] + dx, self.target_position[1] + dy, target_z]
         if self.set_target_position(next_xyz):
             self.last_seen = time.time()
             print(
-                "FOLLOW conf=%.3f err=(%+.3f,%+.3f) step=(%+.2f,%+.2f) target=(%.1f,%.1f,%.1f)"
-                % (conf, ex, ey, dx, dy, self.target_position[0], self.target_position[1], self.target_position[2])
+                "FOLLOW conf=%.3f err=(%+.3f,%+.3f) size_err=%+.3f step=(%+.2f,%+.2f,%+.2f) target=(%.1f,%.1f,%.1f)"
+                % (conf, ex, ey, size_error, dx, dy, dz, self.target_position[0], self.target_position[1], self.target_position[2])
             )
             return True
         return False
@@ -291,6 +311,11 @@ def parse_args():
     parser.add_argument("--invert-y", action="store_true")
     parser.add_argument("--z-min-mm", type=float, default=155.0)
     parser.add_argument("--z-max-mm", type=float, default=280.0)
+    parser.add_argument("--enable-z-size-follow", action="store_true")
+    parser.add_argument("--target-box-height-frac", type=float, default=0.24)
+    parser.add_argument("--z-size-deadband", type=float, default=0.03)
+    parser.add_argument("--z-gain-mm-per-frac", type=float, default=6.0)
+    parser.add_argument("--max-z-step-mm", type=float, default=0.18)
     parser.add_argument("--max-servo-raw-s", type=float, default=80.0)
     parser.add_argument("--max-feedback-lead-ticks", type=int, default=25)
     parser.add_argument("--soft-xy-radius-mm", type=float, default=85.0)
