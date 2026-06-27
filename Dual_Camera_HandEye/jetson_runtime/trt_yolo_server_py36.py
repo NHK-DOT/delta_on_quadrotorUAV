@@ -557,6 +557,14 @@ class TargetSmoother:
             "dx": self._round(self._blend(old_offset.get("dx"), raw_offset.get("dx"), self.alpha), 2),
             "dy": self._round(self._blend(old_offset.get("dy"), raw_offset.get("dy"), self.alpha), 2),
         }
+        image = message.get("image") or {}
+        image_w = float(image.get("w") or 0.0)
+        image_h = float(image.get("h") or 0.0)
+        if image_w > 0.0 and image_h > 0.0:
+            smoothed["normalized_xy"] = {
+                "x": self._round(smoothed["offset"]["dx"] / (image_w / 2.0), 6),
+                "y": self._round(smoothed["offset"]["dy"] / (image_h / 2.0), 6),
+            }
         smoothed["distance_m"] = self._round(
             self._blend(old.get("distance_m"), raw.get("distance_m"), self.alpha),
             4,

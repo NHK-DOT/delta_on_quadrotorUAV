@@ -53,3 +53,9 @@ Current migrated-board runtime check at `192.168.1.80:8090`:
 - Raw center jitter improved with EMA smoothing: dx stdev `2.83 px -> 1.29 px`, dy stdev `0.55 px -> 0.27 px`.
 
 Deployment note: keep the 320 ONNX as the portable handoff and rebuild the TensorRT engine on the actual Jetson. TensorRT engines from JetPack 5 / TensorRT 8 are not portable to this JetPack 4 / TensorRT 7 board.
+
+Follow-preview fix after smoothing:
+
+- `target_smoothed` now carries `normalized_xy` derived from the filtered offset and image size.
+- `wrench_image_follow_preview.py` uses `target_smoothed` first, with an offset/image-size fallback.
+- Live preview check after the fix produced stable `source=smoothed` steps around `dy=-1.67 mm` in the current scene.

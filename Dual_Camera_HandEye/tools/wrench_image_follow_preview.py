@@ -24,10 +24,18 @@ def fetch_json(url, timeout):
         return json.loads(response.read().decode("utf-8"))
 
 
-def compute_step(target, args):
+def compute_step(target, latest, args):
     norm = target.get("normalized_xy") or {}
-    ex = float(norm.get("x", 0.0))
-    ey = float(norm.get("y", 0.0))
+    if norm:
+        ex = float(norm.get("x", 0.0))
+        ey = float(norm.get("y", 0.0))
+    else:
+        offset = target.get("offset") or {}
+        image = latest.get("image") or latest.get("processing_frame") or {}
+        half_w = float(image.get("w", 0.0) or image.get("width", 0.0) or 0.0) / 2.0
+        half_h = float(image.get("h", 0.0) or image.get("height", 0.0) or 0.0) / 2.0
+        ex = float(offset.get("dx", 0.0) or 0.0) / half_w if half_w > 0 else 0.0
+        ey = float(offset.get("dy", 0.0) or 0.0) / half_h if half_h > 0 else 0.0
     if abs(ex) < args.deadband:
         ex = 0.0
     if abs(ey) < args.deadband:
@@ -77,7 +85,7 @@ def main():
             elif conf < args.min_conf:
                 print("LOW_CONF conf=%.3f" % conf)
             else:
-                ex, ey, dx, dy = compute_step(target, args)
+                ex, ey, dx, dy = compute_step(target, latest, args)
                 distance = target.get("distance_m")
                 distance_text = "" if distance is None else " z=%.3fm" % float(distance)
                 print(
