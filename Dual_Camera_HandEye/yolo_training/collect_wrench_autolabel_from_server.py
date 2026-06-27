@@ -2,6 +2,7 @@
 """Collect raw frames and YOLO labels from the live wrench detector service."""
 
 import argparse
+import base64
 import json
 import time
 import urllib.request
@@ -16,6 +17,16 @@ def fetch_json(url, timeout):
 def fetch_bytes(url, timeout):
     with urllib.request.urlopen(url, timeout=timeout) as response:
         return response.read()
+
+
+def fetch_snapshot(base_url, timeout):
+    latest = fetch_json(base_url.rstrip("/") + "/snapshot.json", timeout=timeout)
+    encoded = latest.get("raw_jpeg_base64")
+    if not encoded:
+        raise RuntimeError("snapshot has no raw_jpeg_base64")
+    latest = dict(latest)
+    latest.pop("raw_jpeg_base64", None)
+    return latest, base64.b64decode(encoded)
 
 
 def yolo_label_from_latest(latest, min_conf):
@@ -51,6 +62,7 @@ def main():
     parser.add_argument("--interval-sec", type=float, default=0.25)
     parser.add_argument("--min-conf", type=float, default=0.35)
     parser.add_argument("--prefix", default="wrench_auto")
+    parser.add_argument("--no-snapshot", action="store_true", help="Disable same-frame /snapshot.json capture.")
     args = parser.parse_args()
 
     image_dir = args.output / "images" / args.split
@@ -64,12 +76,23 @@ def main():
     while saved < args.count and attempts < args.count * 5:
         attempts += 1
         try:
-            latest = fetch_json(args.base_url.rstrip("/") + "/latest.json", timeout=1.0)
+            if args.no_snapshot:
+                raise RuntimeError("snapshot disabled")
+            latest, jpg = fetch_snapshot(args.base_url, timeout=1.0)
+        except Exception:
+            try:
+                latest = fetch_json(args.base_url.rstrip("/") + "/latest.json", timeout=1.0)
+                jpg = fetch_bytes(args.base_url.rstrip("/") + "/raw.jpg", timeout=1.0)
+            except Exception as exc:
+                print("skip:", exc)
+                time.sleep(args.interval_sec)
+                continue
+
+        try:
             label = yolo_label_from_latest(latest, args.min_conf)
             if label is None:
                 time.sleep(args.interval_sec)
                 continue
-            jpg = fetch_bytes(args.base_url.rstrip("/") + "/raw.jpg", timeout=1.0)
         except Exception as exc:
             print("skip:", exc)
             time.sleep(args.interval_sec)

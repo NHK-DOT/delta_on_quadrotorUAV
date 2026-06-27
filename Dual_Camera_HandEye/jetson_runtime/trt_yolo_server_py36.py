@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import argparse
+import base64
 import ctypes
 import copy
 import json
@@ -599,6 +600,7 @@ class VisionState:
             "detections": [],
         }
         self.jpeg = None
+        self.raw_jpeg = None
 
     def set_error(self, status):
         with self.lock:
@@ -610,10 +612,12 @@ class VisionState:
                 "detections": [],
             }
 
-    def update(self, message, jpeg):
+    def update(self, message, jpeg, raw_jpeg=None):
         with self.lock:
             self.latest = message
             self.jpeg = jpeg
+            if raw_jpeg is not None:
+                self.raw_jpeg = raw_jpeg
 
     def get_latest(self):
         with self.lock:
@@ -622,6 +626,10 @@ class VisionState:
     def get_jpeg(self):
         with self.lock:
             return self.jpeg
+
+    def get_raw_jpeg(self):
+        with self.lock:
+            return self.raw_jpeg
 
 
 class UdpPublisher:
@@ -697,10 +705,11 @@ def start_vision_worker(args):
                     depth_info = depth.snapshot()
                     message = build_message(detections, frame.shape, smoothed_fps, args.label, args.source, depth_info, args)
                     message = smoother.update(message)
+                    ok_raw, raw_jpg = cv2.imencode(".jpg", frame, [int(cv2.IMWRITE_JPEG_QUALITY), args.quality])
                     annotated = draw(frame, detections, smoothed_fps, args.label, depth_info)
                     ok, jpg = cv2.imencode(".jpg", annotated, [int(cv2.IMWRITE_JPEG_QUALITY), args.quality])
                     if ok:
-                        state.update(message, jpg.tobytes())
+                        state.update(message, jpg.tobytes(), raw_jpg.tobytes() if ok_raw else None)
                         publisher.maybe_send(message)
                     spent = time.time() - started
                     if frame_interval > spent:
@@ -751,6 +760,28 @@ def make_handler(args, state):
                 latest = state.get_latest()
                 age = time.time() - latest.get("timestamp", 0)
                 send_json(self, 200 if age < 3 else 503, {"status": latest.get("status"), "age_sec": round(age, 3)})
+                return
+            if self.path == "/raw.jpg":
+                payload = state.get_raw_jpeg()
+                if payload is None:
+                    self.send_error(503)
+                    return
+                self.send_response(200)
+                self.send_header("Content-Type", "image/jpeg")
+                self.send_header("Cache-Control", "no-cache")
+                self.send_header("Content-Length", str(len(payload)))
+                self.end_headers()
+                self.wfile.write(payload)
+                return
+            if self.path == "/snapshot.json":
+                payload = state.get_raw_jpeg()
+                if payload is None:
+                    self.send_error(503)
+                    return
+                snapshot = state.get_latest()
+                snapshot["raw_jpeg_base64"] = base64.b64encode(payload).decode("ascii")
+                snapshot["raw_jpeg_bytes"] = len(payload)
+                send_json(self, 200, snapshot)
                 return
             if self.path != "/stream.mjpg":
                 self.send_error(404)
