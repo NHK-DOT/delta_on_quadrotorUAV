@@ -66,9 +66,10 @@ def main():
         now = time.time()
         try:
             latest = fetch_json(args.latest_url, timeout=2.0)
-            target = latest.get("target") or {}
+            target = latest.get("target_smoothed") or latest.get("target") or {}
             age = now - float(latest.get("timestamp_unix", latest.get("timestamp", now)))
             conf = float(target.get("conf", 0.0) or 0.0)
+            target_source = "smoothed" if latest.get("target_smoothed") else "raw"
             if not latest.get("valid") or not target:
                 print("NO_TARGET status=%s" % latest.get("status"))
             elif age > args.max_age_sec:
@@ -80,8 +81,8 @@ def main():
                 distance = target.get("distance_m")
                 distance_text = "" if distance is None else " z=%.3fm" % float(distance)
                 print(
-                    "FOLLOW_PREVIEW conf=%.3f err=(%+.3f,%+.3f)%s step_xy_mm=(%+.2f,%+.2f)"
-                    % (conf, ex, ey, distance_text, dx, dy)
+                    "FOLLOW_PREVIEW source=%s conf=%.3f err=(%+.3f,%+.3f)%s step_xy_mm=(%+.2f,%+.2f)"
+                    % (target_source, conf, ex, ey, distance_text, dx, dy)
                 )
         except Exception as exc:
             print("ERROR %r" % (exc,))

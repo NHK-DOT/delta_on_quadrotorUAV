@@ -6,6 +6,7 @@ DEPTH_START="${DEPTH_START:-/home/nvidia/orbbec_sdk/start_depth_grid.sh}"
 DEPTH_JSON="${DEPTH_JSON:-/tmp/orbbec_depth_grid.json}"
 ENGINE="${ENGINE:-models/wrench_combined_20260626_320_trt7_fp16.engine}"
 PORT="${PORT:-8090}"
+TARGET_SMOOTH_ALPHA="${TARGET_SMOOTH_ALPHA:-0.35}"
 
 cd "${VISION_DIR}"
 mkdir -p outputs
@@ -28,6 +29,7 @@ nohup python3 scripts/trt_yolo_server.py \
   --max-detections 1 \
   --depth-json "${DEPTH_JSON}" --depth-max-age 1.0 \
   --camera-hfov-deg 67 --camera-vfov-deg 52 \
+  --target-smooth-alpha "${TARGET_SMOOTH_ALPHA}" \
   --host 0.0.0.0 --port "${PORT}" \
   > outputs/trt_yolo_wrench_orbbec.log 2>&1 < /dev/null &
 
