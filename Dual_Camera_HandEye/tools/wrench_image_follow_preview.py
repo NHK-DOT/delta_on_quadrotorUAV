@@ -64,7 +64,8 @@ def main():
     parser.add_argument("--min-conf", type=float, default=0.25)
     parser.add_argument("--max-age-sec", type=float, default=0.5)
     parser.add_argument("--invert-x", action="store_true")
-    parser.add_argument("--invert-y", action="store_true")
+    parser.add_argument("--invert-y", dest="invert_y", action="store_true", default=True, help="Invert Y sign; default matches the current Jetson bench.")
+    parser.add_argument("--no-invert-y", dest="invert_y", action="store_false", help="Disable Y sign inversion.")
     args = parser.parse_args()
 
     interval = 1.0 / args.rate_hz if args.rate_hz > 0 else 0.2
