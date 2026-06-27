@@ -59,3 +59,19 @@ Follow-preview fix after smoothing:
 - `target_smoothed` now carries `normalized_xy` derived from the filtered offset and image size.
 - `wrench_image_follow_preview.py` uses `target_smoothed` first, with an offset/image-size fallback.
 - Live preview check after the fix produced stable `source=smoothed` steps around `dy=-1.67 mm` in the current scene.
+
+## 640 TensorRT experiment on Jetson 4.4.1
+
+The 640 ONNX was also built on the migrated Jetson as:
+
+```text
+/home/nvidia/vision_starter/models/wrench_combined_20260626_640_trt7_fp16.engine
+```
+
+TensorRT-only benchmark from `trtexec` passed with mean end-to-end latency about `10.84 ms`, but the real camera service was not suitable for this board/application:
+
+- Live camera pipeline with the 640 engine: about `8.7 FPS`.
+- Current scene confidence averaged about `0.52`, lower than the 320 deployment in the same setup.
+- The service was switched back to the 320 TensorRT engine for the high-frame-rate control path.
+
+Current recommendation: keep 320 as the default on this JetPack 4 / TensorRT 7 Jetson. Use 640 only as an offline/experimental artifact unless a later board or runtime can keep the full camera pipeline above the required control rate.

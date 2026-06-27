@@ -22,3 +22,7 @@ target_smoothed  EMA-filtered center, offset, depth, and camera-frame position
 Use `target_smoothed` for arm follow and close-range approach planning. Keep raw `target` for debugging and model-quality checks.
 
 Safety boundary: this runtime does not open a servo port, arm the aircraft, or close a gripper. Real motion should stay gated behind the bench safety checks, dry-run planner, and explicit manual enable.
+
+## 320 vs 640 on this board
+
+The 640 FP16 TensorRT engine builds successfully, but live service testing on 2026-06-27 showed about `8.7 FPS` and lower current-scene confidence than the 320 engine. Keep `wrench_combined_20260626_320_trt7_fp16.engine` as the default for moving follow/grasp work on this JetPack 4 board.
