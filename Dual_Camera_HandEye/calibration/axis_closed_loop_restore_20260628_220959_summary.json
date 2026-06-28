@@ -1,0 +1,32 @@
+{
+  "desired_raw": {
+    "1": 530,
+    "2": 583,
+    "3": 606
+  },
+  "output_jsonl": "/home/nvidia/Desktop/78arm/Dual_Camera_HandEye/calibration/axis_closed_loop_restore_20260628_220959.jsonl",
+  "final": {
+    "phase": "final",
+    "feedback_raw": {
+      "1": 530,
+      "2": 584,
+      "3": 607
+    },
+    "desired_raw": {
+      "1": 530,
+      "2": 583,
+      "3": 606
+    },
+    "error": {
+      "1": 0,
+      "2": -1,
+      "3": -1
+    },
+    "tool_xyz_mm": {
+      "x": 11.761,
+      "y": -5.151,
+      "z": 134.835
+    },
+    "fk_ok": true
+  }
+}

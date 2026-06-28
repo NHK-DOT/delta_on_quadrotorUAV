@@ -95,6 +95,25 @@ python3 servo_feedback_follow_check_py36.py --samples 0 --step-all-ticks 5 --mov
 If axis 3 still fails, do not run visual following, workspace sampling, or
 grasp execution.
 
+## Latest Axis Recovery Note
+
+A later small-motion diagnostic showed the arm can passively sag to about:
+
+```text
+raw = {1:476, 2:526, 3:551}
+tool FK z ~= 111 mm
+```
+
+The bounded feedback nudge tool recovered it in staged targets back to about:
+
+```text
+raw ~= {1:530, 2:587, 3:608}
+tool FK z ~= 135 mm
+```
+
+This recovery is useful for diagnostics, but it is not a substitute for fixing
+servo holding/torque/load before precision calibration or grasp execution.
+
 ## GitHub Checkpoints
 
 Shared repo:

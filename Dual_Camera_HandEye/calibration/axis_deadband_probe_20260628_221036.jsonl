@@ -1,0 +1,11 @@
+{"phase":"baseline","feedback_raw":{"1":530,"2":584,"3":607},"tool_xyz_mm":{"x":11.761,"y":-5.151,"z":134.835}}
+{"phase":"probe_command","axis":1,"delta":5,"before_raw":{"1":530,"2":584,"3":607},"target_raw":{"1":535,"2":584,"3":607}}
+{"phase":"probe_result","axis":1,"delta":5,"target_raw":{"1":535,"2":584,"3":607},"feedback_raw":{"1":530,"2":581,"3":603},"moved_ticks":{"1":0,"2":-3,"3":-4},"follow_error":{"1":5,"2":3,"3":4},"tool_xyz_mm":{"x":10.876,"y":-4.882,"z":133.776}}
+{"phase":"restore_read","label":"axis1_delta5","iter":0,"desired_raw":{"1":530,"2":584,"3":607},"feedback_raw":{"1":530,"2":582,"3":603},"error":{"1":0,"2":2,"3":4},"max_abs_error":4,"tool_xyz_mm":{"x":10.999,"y":-4.705,"z":133.936}}
+{"phase":"restore_command","label":"axis1_delta5","iter":0,"command_raw":{"1":530,"2":586,"3":611}}
+{"phase":"restore_read","label":"axis1_delta5","iter":1,"desired_raw":{"1":530,"2":584,"3":607},"feedback_raw":{"1":527,"2":581,"3":603},"error":{"1":3,"2":3,"3":4},"max_abs_error":4,"tool_xyz_mm":{"x":11.42,"y":-4.858,"z":133.228}}
+{"phase":"restore_command","label":"axis1_delta5","iter":1,"command_raw":{"1":533,"2":587,"3":611}}
+{"phase":"restore_read","label":"axis1_delta5","iter":2,"desired_raw":{"1":530,"2":584,"3":607},"feedback_raw":{"1":528,"2":581,"3":603},"error":{"1":2,"2":3,"3":4},"max_abs_error":4,"tool_xyz_mm":{"x":11.239,"y":-4.866,"z":133.411}}
+{"phase":"restore_command","label":"axis1_delta5","iter":2,"command_raw":{"1":532,"2":587,"3":611}}
+{"phase":"restore_read","label":"axis1_delta5","iter":3,"desired_raw":{"1":530,"2":584,"3":607},"feedback_raw":{"1":527,"2":582,"3":603},"error":{"1":3,"2":2,"3":4},"max_abs_error":4,"tool_xyz_mm":{"x":11.543,"y":-4.682,"z":133.386}}
+{"phase":"restore_command","label":"axis1_delta5","iter":3,"command_raw":{"1":533,"2":586,"3":611}}
