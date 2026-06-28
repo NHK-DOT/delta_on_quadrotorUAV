@@ -198,3 +198,14 @@ python3 servo_feedback_follow_check_py36.py --samples 0 --step-all-ticks 5
 If the `+5 tick` check cannot pass with low error, do not run visual following
 or workspace sampling. Check servo torque/holding mode, linkage load, power
 headroom, and whether the servo controller is actually commanding position hold.
+
+Later lifting diagnostics isolated the worst behavior to axis 3:
+
+```text
+target raw = {1:551, 2:599, 3:623}
+feedback raw = {1:545, 2:592, 3:603}
+follow error = {1:6, 2:7, 3:20}
+```
+
+The motion test was stopped and a hold-current command was sent. Treat axis 3
+follow/holding as the main hardware blocker before any real grasp execution.
