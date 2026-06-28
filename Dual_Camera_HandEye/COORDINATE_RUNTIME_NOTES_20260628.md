@@ -102,6 +102,13 @@ cat Dual_Camera_HandEye/output/fused_wrench_pose_latest.json
 cat Dual_Camera_HandEye/output/wrench_grasp_sequence_latest.json
 ```
 
+Runtime status and no-motion stability check:
+
+```bash
+bash Dual_Camera_HandEye/tools/check_wrench_runtime_status_jetson.sh
+SAMPLES=32 INTERVAL_SEC=0.25 bash Dual_Camera_HandEye/tools/sample_wrench_runtime_stability_jetson.sh
+```
+
 ## Next Calibration Step
 
 Use a known physical point or AprilTag target visible to the tool camera and

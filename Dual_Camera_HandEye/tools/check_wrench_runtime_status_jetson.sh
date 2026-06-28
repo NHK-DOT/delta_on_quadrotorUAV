@@ -45,3 +45,6 @@ for path in (
     except Exception as exc:
         print(path, "ERROR", repr(exc))
 PY
+
+echo
+echo "note: planner status tool_out_of_range is expected while real tool FK z is below the configured safe range."

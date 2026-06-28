@@ -5,6 +5,7 @@ REPO_DIR="${REPO_DIR:-/home/nvidia/Desktop/78arm}"
 VISION_DIR="${VISION_DIR:-/home/nvidia/vision_starter}"
 ENGINE="${ENGINE:-models/wrench_current_manual_affine_gpu_e15_best_320_trt7_fp16.engine}"
 TOOL_CAMERA_JSON="${TOOL_CAMERA_JSON:-Dual_Camera_HandEye/output/tool_T_camera_rough_motion_fit_20260628.json}"
+YOLO_READY_TIMEOUT_SEC="${YOLO_READY_TIMEOUT_SEC:-30}"
 
 cd "${VISION_DIR}"
 mkdir -p outputs
@@ -25,6 +26,29 @@ nohup python3 scripts/trt_yolo_server.py \
   --host 0.0.0.0 --port 8090 \
   > outputs/trt_yolo_server.log 2>&1 < /dev/null &
 echo "$!" > outputs/trt_yolo_server.pid
+
+python3 - "${YOLO_READY_TIMEOUT_SEC}" <<'PY'
+import json
+import sys
+import time
+import urllib.request
+
+deadline = time.time() + float(sys.argv[1])
+last_error = None
+while time.time() < deadline:
+    try:
+        with urllib.request.urlopen("http://127.0.0.1:8090/healthz", timeout=1.0) as r:
+            data = json.loads(r.read().decode("utf-8"))
+        if data.get("status") == "ok":
+            print("yolo_ready=true")
+            break
+    except Exception as exc:
+        last_error = repr(exc)
+    time.sleep(0.5)
+else:
+    print("yolo_ready=false last_error=%s" % (last_error,), file=sys.stderr)
+    raise SystemExit(3)
+PY
 
 cd "${REPO_DIR}"
 bash Delta_Gcode_Servo/real_machine_test/jetson_py36/start_base_tool_feedback_publisher_jetson.sh
