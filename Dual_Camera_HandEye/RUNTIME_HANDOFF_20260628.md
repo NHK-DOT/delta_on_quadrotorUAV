@@ -114,6 +114,11 @@ tool FK z ~= 135 mm
 This recovery is useful for diagnostics, but it is not a substitute for fixing
 servo holding/torque/load before precision calibration or grasp execution.
 
+An optional hold mode was added to the base-tool feedback publisher. It is
+disabled by default because a live trial did not hold the arm tightly enough
+near `530,584,607`. Use it only as a controlled diagnostic, not as a final
+motion-control solution.
+
 ## GitHub Checkpoints
 
 Shared repo:

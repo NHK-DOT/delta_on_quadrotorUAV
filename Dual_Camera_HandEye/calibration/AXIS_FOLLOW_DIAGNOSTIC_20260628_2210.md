@@ -133,3 +133,24 @@ tool FK z ~= 135.46 mm
 This confirms the bounded feedback nudge can recover the arm near the previous
 pose, but the passive sag event means the actuator holding problem is real and
 must be treated as a hardware/control blocker for precision calibration.
+
+## Hold Mode Trial
+
+The feedback FK publisher was extended with an optional hold mode so the same
+serial owner can both publish real FK and periodically send bounded raw
+corrections. A trial with:
+
+```text
+HOLD_TARGET_RAW=530,584,607
+```
+
+prevented a full collapse to `z ~= 111 mm`, but it did not hold the arm tightly
+at the target. Stronger hold settings also failed to keep the feedback near the
+target and interacted poorly with the current load/deadband.
+
+Final decision:
+
+- keep hold mode available for controlled diagnostics
+- keep hold mode disabled by default
+- do not use hold mode as proof that the arm is ready for precision calibration
+- fix servo torque/holding/load before any real grasp execution
