@@ -10,7 +10,7 @@ Current restored runtime state after diagnostics:
 ```text
 base_tool_feedback_publisher: running
 fused_wrench_pose_publisher: running with rough tool camera transform
-wrench_grasp_planner: running, dry-run only
+wrench_grasp_planner: running, dry-run only, gated by real tool z range
 ```
 
 Latest observed tool feedback after stopping motion tests:
@@ -21,6 +21,8 @@ tool FK ~= x 11 mm, y -4 mm, z 135 mm
 ```
 
 The tool is still below the nominal planner range. Do not execute grasp motion.
+The current planner should return `tool_out_of_range` until the real feedback
+FK is back inside the configured tool-z range.
 
 ## Diagnostics Run
 

@@ -141,18 +141,20 @@ that normalizes the current object to about `z=200 mm`. It is not a precision
 hand-eye calibration. It is only for dry-run planning and coordinate-direction
 debugging.
 
-With that rough transform, the live dry-run planner currently produces a
-reachable sequence around:
+With that rough transform, the live fused pose is stable, but the planner now
+also gates on the real servo-feedback tool height. The current tool FK is below
+the nominal range:
 
 ```text
-x = -26 mm
-y = 11 mm
-z = 201 mm
+tool FK z ~= 134.5 mm
+planner status = tool_out_of_range
+planner nominal tool-z range = 155..280 mm
 ```
 
 Do not use this rough transform for closed-loop grasp execution until the
 mechanical slipping/holding issue is understood and a known physical target is
-used to solve translation properly.
+used to solve translation properly. If the planner returns `tool_out_of_range`,
+that is the expected safe behavior and should not be bypassed for real motion.
 
 ## Servo Follow Diagnostic Update
 

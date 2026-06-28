@@ -87,15 +87,18 @@ def load_base_tool_payload(args: argparse.Namespace) -> Dict[str, Any]:
             "matrix": matrix_from_transform(payload),
             "source": args.base_tool_json,
             "mode": payload.get("mode", "servo_feedback"),
+            "valid": payload.get("valid", True),
             "timestamp": payload.get("timestamp"),
             "raw": payload.get("raw"),
             "tool_position_base_m": payload.get("tool_position_base_m"),
+            "warnings": payload.get("warnings") or [],
         }
     if args.base_tool_rpy:
         return {
             "matrix": transform_from_rpy(args.base_tool_rpy),
             "source": "--base-tool-rpy",
             "mode": "static_rpy_simulated",
+            "valid": True,
             "timestamp": None,
             "raw": None,
             "tool_position_base_m": {
@@ -103,6 +106,7 @@ def load_base_tool_payload(args: argparse.Namespace) -> Dict[str, Any]:
                 "y": float(args.base_tool_rpy[1]),
                 "z": float(args.base_tool_rpy[2]),
             },
+            "warnings": ["base_T_tool is static/simulated"],
         }
     raise ValueError("provide --base-tool-json or --base-tool-rpy")
 
@@ -184,9 +188,11 @@ def build_payload(args: argparse.Namespace, seq: int) -> Dict[str, Any]:
             "base_T_tool": {
                 "source": base_tool["source"],
                 "mode": base_tool["mode"],
+                "valid": base_tool["valid"],
                 "timestamp": base_tool["timestamp"],
                 "raw": base_tool["raw"],
                 "tool_position_base_m": base_tool["tool_position_base_m"],
+                "warnings": base_tool["warnings"],
             },
             "tool_T_camera": {
                 "source": args.tool_camera_json or args.calibration,

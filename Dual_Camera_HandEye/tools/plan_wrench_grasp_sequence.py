@@ -69,6 +69,46 @@ def build_sequence(args):
             "timestamp": time.time(),
         }
 
+    base_tool = fused.get("transforms", {}).get("base_T_tool", {})
+    tool_position = base_tool.get("tool_position_base_m") or {}
+    tool_z_m = tool_position.get("z")
+    if base_tool and not base_tool.get("valid", True):
+        return {
+            "valid": False,
+            "status": "invalid_base_tool_feedback",
+            "timestamp": time.time(),
+            "source": str(args.fused_pose),
+            "source_seq": fused.get("seq"),
+            "base_tool": base_tool,
+        }
+    if isinstance(tool_z_m, (int, float)):
+        tool_z_mm = float(tool_z_m) * 1000.0
+        if not args.allow_tool_out_of_range and (
+            tool_z_mm < float(args.tool_z_min_mm) or tool_z_mm > float(args.tool_z_max_mm)
+        ):
+            return {
+                "valid": False,
+                "status": "tool_out_of_range",
+                "timestamp": time.time(),
+                "source": str(args.fused_pose),
+                "source_seq": fused.get("seq"),
+                "base_tool": {
+                    "mode": base_tool.get("mode"),
+                    "raw": base_tool.get("raw"),
+                    "tool_position_base_mm": {
+                        "x": round(float(tool_position.get("x", 0.0)) * 1000.0, 3),
+                        "y": round(float(tool_position.get("y", 0.0)) * 1000.0, 3),
+                        "z": round(tool_z_mm, 3),
+                    },
+                    "warnings": base_tool.get("warnings") or [],
+                },
+                "safety": {
+                    "tool_z_min_mm": float(args.tool_z_min_mm),
+                    "tool_z_max_mm": float(args.tool_z_max_mm),
+                    "requires_executor_confirmation": True,
+                },
+            }
+
     wrench = fused.get("wrench_position_base_m") or {}
     x = float(wrench["x"]) * 1000.0 + float(args.grasp_offset_x_mm)
     y = float(wrench["y"]) * 1000.0 + float(args.grasp_offset_y_mm)
@@ -164,6 +204,8 @@ def build_sequence(args):
             "xy_limit_mm": float(args.xy_limit_mm),
             "z_min_mm": float(args.z_min_mm),
             "z_max_mm": float(args.z_max_mm),
+            "tool_z_min_mm": float(args.tool_z_min_mm),
+            "tool_z_max_mm": float(args.tool_z_max_mm),
             "requires_executor_confirmation": True,
             "allow_workspace_clamp": bool(args.allow_workspace_clamp),
         },
@@ -215,6 +257,9 @@ def main():
     parser.add_argument("--max-source-age-sec", type=float, default=1.0)
     parser.add_argument("--allow-workspace-clamp", action="store_true")
     parser.add_argument("--allow-simulated-base-tool", action="store_true")
+    parser.add_argument("--tool-z-min-mm", type=float, default=155.0)
+    parser.add_argument("--tool-z-max-mm", type=float, default=280.0)
+    parser.add_argument("--allow-tool-out-of-range", action="store_true")
     args = parser.parse_args()
 
     payload = build_sequence(args)
