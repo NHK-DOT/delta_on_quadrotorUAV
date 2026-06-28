@@ -5,6 +5,7 @@ REPO_DIR="${REPO_DIR:-/home/nvidia/Desktop/78arm}"
 CONTROL_UDP_HOST="${CONTROL_UDP_HOST:-}"
 CONTROL_UDP_PORT="${CONTROL_UDP_PORT:-0}"
 BASE_TOOL_JSON="${BASE_TOOL_JSON:-${REPO_DIR}/Dual_Camera_HandEye/output/base_tool_from_servo_latest.json}"
+TOOL_CAMERA_JSON="${TOOL_CAMERA_JSON:-}"
 RATE_HZ="${RATE_HZ:-10}"
 MAX_SOURCE_AGE_SEC="${MAX_SOURCE_AGE_SEC:-0.75}"
 
@@ -27,6 +28,10 @@ ARGS=(
   --rate-hz "${RATE_HZ}"
   --max-source-age-sec "${MAX_SOURCE_AGE_SEC}"
 )
+
+if [ -n "${TOOL_CAMERA_JSON}" ]; then
+  ARGS+=(--tool-camera-json "${TOOL_CAMERA_JSON}")
+fi
 
 if [ -n "${BASE_TOOL_JSON}" ] && [ -f "${BASE_TOOL_JSON}" ]; then
   ARGS+=(--base-tool-json "${BASE_TOOL_JSON}")

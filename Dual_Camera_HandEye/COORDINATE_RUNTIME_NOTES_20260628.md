@@ -113,3 +113,43 @@ compare:
 
 If the Z direction is inverted or the camera mount pitch sign is wrong, fix
 `tool_T_object_camera` before enabling any real grasp execution.
+
+## Rough Motion Fit Update
+
+After small remote servo motions around the current pose, a rough axis fit was
+created from real feedback FK and live camera observations:
+
+```text
+samples = 14
+tool feedback range = about 4 mm per axis
+affine variation RMSE = about 0.65 mm
+orthogonal rotation variation RMSE = about 1.16 mm
+```
+
+The motion showed actuator lag/slip: after returning to the start command, raw
+feedback did not return exactly to the start raw values. Because of that, all
+calibration math used feedback FK only, not commanded raw positions.
+
+Temporary dry-run calibration:
+
+```text
+Dual_Camera_HandEye/output/tool_T_camera_rough_motion_fit_20260628.json
+```
+
+This file uses the fitted rotation and a deliberately marked rough translation
+that normalizes the current object to about `z=200 mm`. It is not a precision
+hand-eye calibration. It is only for dry-run planning and coordinate-direction
+debugging.
+
+With that rough transform, the live dry-run planner currently produces a
+reachable sequence around:
+
+```text
+x = -26 mm
+y = 11 mm
+z = 201 mm
+```
+
+Do not use this rough transform for closed-loop grasp execution until the
+mechanical slipping/holding issue is understood and a known physical target is
+used to solve translation properly.

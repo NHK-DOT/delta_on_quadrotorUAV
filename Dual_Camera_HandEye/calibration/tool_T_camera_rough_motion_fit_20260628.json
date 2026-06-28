@@ -1,0 +1,37 @@
+{
+  "mode": "rough_motion_fit_z200_dry_run_only",
+  "units": "m",
+  "note": "R fitted from small feedback-FK motion samples on 2026-06-28. Translation z is normalized to current scene z=200mm; not precision calibration; dry-run only.",
+  "matrix": [
+    [
+      0.733,
+      0.184,
+      -0.655,
+      0.045
+    ],
+    [
+      0.35,
+      -0.927,
+      0.132,
+      -0.012
+    ],
+    [
+      -0.583,
+      -0.326,
+      -0.744,
+      0.2180149
+    ],
+    [
+      0.0,
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "fit_summary": {
+    "samples": 14,
+    "affine_rmse_mm": 0.645,
+    "orthogonal_rmse_mm": 1.162,
+    "target_current_object_z_mm": 200.0
+  }
+}
