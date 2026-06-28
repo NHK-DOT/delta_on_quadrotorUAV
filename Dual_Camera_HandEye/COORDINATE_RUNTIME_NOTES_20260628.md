@@ -153,3 +153,48 @@ z = 201 mm
 Do not use this rough transform for closed-loop grasp execution until the
 mechanical slipping/holding issue is understood and a known physical target is
 used to solve translation properly.
+
+## Servo Follow Diagnostic Update
+
+A servo follow check was run after the rough calibration motion. The serial
+feedback and battery were stable:
+
+```text
+battery = 12238..12290 mV
+readback jitter = about 1 tick on most samples
+current FK z = about 132 mm
+```
+
+However, a small symmetric `+5 tick` command still did not fully follow:
+
+```text
+target raw = {1:522, 2:573, 3:630}
+feedback raw = {1:517, 2:565, 3:624}
+follow error = {1:5, 2:8, 3:6}
+```
+
+This means the main remaining drift/lead problem is actuator following, not
+YOLO jitter. The software defaults were tightened so the virtual target cannot
+run far ahead of real feedback:
+
+```text
+jetson_wrench_image_follower_py36.py:
+  max_servo_raw_s default 30
+  max_feedback_lead_ticks default 5
+
+jetson_apriltag_workspace_sampler_py36.py:
+  max_servo_raw_s default 45
+  max_feedback_lead_ticks default 5
+```
+
+A reusable diagnostic was added:
+
+```bash
+cd /home/nvidia/Desktop/78arm/Delta_Gcode_Servo/real_machine_test/jetson_py36
+python3 servo_feedback_follow_check_py36.py --samples 20
+python3 servo_feedback_follow_check_py36.py --samples 0 --step-all-ticks 5
+```
+
+If the `+5 tick` check cannot pass with low error, do not run visual following
+or workspace sampling. Check servo torque/holding mode, linkage load, power
+headroom, and whether the servo controller is actually commanding position hold.
