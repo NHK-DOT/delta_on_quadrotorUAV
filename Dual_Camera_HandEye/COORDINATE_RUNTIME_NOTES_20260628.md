@@ -209,3 +209,9 @@ follow error = {1:6, 2:7, 3:20}
 
 The motion test was stopped and a hold-current command was sent. Treat axis 3
 follow/holding as the main hardware blocker before any real grasp execution.
+
+Follow-up isolation showed axis 3 can move, but it stalls several ticks short
+and then sags back. A hold-refresh option was added to the follower and sampler
+so unchanged command targets are resent periodically. This is a software
+mitigation only; real execution should still wait for hardware-side axis 3
+holding/following checks.

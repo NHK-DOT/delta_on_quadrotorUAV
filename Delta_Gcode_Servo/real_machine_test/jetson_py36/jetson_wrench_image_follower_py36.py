@@ -56,6 +56,7 @@ class WrenchImageFollower(object):
         self.locked_z = None
         self.last_feedback = 0.0
         self.last_seen = 0.0
+        self.last_command_refresh = 0.0
         self.ik_failures = 0
         self.filtered_error = None
 
@@ -198,12 +199,19 @@ class WrenchImageFollower(object):
             next_raw[servo_id] = value
             changed = changed or value != current
         next_raw = self.clamp_raw_to_limits(next_raw)
-        if not changed or not self.command_respects_z_floor(next_raw):
+        now = time.time()
+        if not changed:
+            if float(self.args.hold_refresh_sec) > 0.0 and now - self.last_command_refresh >= float(self.args.hold_refresh_sec):
+                self.driver.set_servo_positions([(sid, self.command_raw[sid]) for sid in self.servo_ids], 120)
+                self.last_command_refresh = now
+            return True
+        if not self.command_respects_z_floor(next_raw):
             return True
         max_move = max(abs(next_raw[sid] - self.command_raw[sid]) for sid in self.servo_ids)
         time_ms = max(30, int((max_move / max(1.0, float(self.args.max_servo_raw_s))) * 1000.0))
         self.driver.set_servo_positions([(sid, next_raw[sid]) for sid in self.servo_ids], time_ms)
         self.command_raw = dict(next_raw)
+        self.last_command_refresh = now
         return True
 
     def read_stop_buttons(self):
@@ -343,6 +351,7 @@ def parse_args():
     parser.add_argument("--max-z-step-mm", type=float, default=0.18)
     parser.add_argument("--max-servo-raw-s", type=float, default=30.0)
     parser.add_argument("--max-feedback-lead-ticks", type=int, default=5)
+    parser.add_argument("--hold-refresh-sec", type=float, default=0.5)
     parser.add_argument("--soft-xy-radius-mm", type=float, default=115.0)
     parser.add_argument("--max-ik-failures", type=int, default=12)
     parser.add_argument("--ik-retreat-steps", type=int, default=8)

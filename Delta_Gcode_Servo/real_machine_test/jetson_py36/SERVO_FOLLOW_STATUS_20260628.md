@@ -100,3 +100,41 @@ python3 servo_feedback_follow_check_py36.py --samples 0 --step-all-ticks 5 --mov
 
 If axis 3 does not follow within the limit, do not run visual following,
 workspace sampling, or grasp execution.
+
+## Axis 3 Isolation
+
+A later single-axis test showed axis 3 is not completely disconnected, but it is
+slow and weak under the current load:
+
+```text
+start raw = {1:530, 2:587, 3:597}
+axis 3 target = 617
+after about 4 s, axis 3 reached about 610..611
+after settling, axis 3 sagged back to about 607..608
+```
+
+Repeatedly refreshing the same axis-3 target helped only slightly:
+
+```text
+target axis 3 = 617
+feedback axis 3 stabilized around 609..610
+remaining error = 7..8 ticks
+```
+
+This points to a holding/load/deadband issue rather than a total bus or ID
+failure.
+
+Software mitigation added:
+
+```text
+visual follower:
+  --hold-refresh-sec default 0.5
+
+workspace sampler:
+  --hold-refresh-sec default 0.5
+```
+
+When the target command is unchanged, the controller now periodically resends
+the current command raw values. This does not solve the mechanical issue, but it
+reduces passive sag and prevents the software from assuming that one old command
+will hold forever.

@@ -185,6 +185,7 @@ class JetsonWorkspaceSampler(object):
             self.current_position = [0.0, 0.0, 240.0]
         self.target_position = list(self.current_position)
         self.last_feedback_time = 0.0
+        self.last_command_refresh = 0.0
         self.last_status_time = 0.0
         self.last_voltage_time = 0.0
         self.battery_mv = None
@@ -606,6 +607,17 @@ class JetsonWorkspaceSampler(object):
     def send_motion(self):
         next_raw, changed = self.compute_limited_command_raw()
         if not changed:
+            now = time.time()
+            if float(self.args.hold_refresh_sec) > 0.0 and now - self.last_command_refresh >= float(self.args.hold_refresh_sec):
+                try:
+                    targets = [(servo_id, int(self.command_raw[servo_id])) for servo_id in self.servo_ids]
+                    self.driver.set_servo_positions(targets, 120)
+                    self.last_command_refresh = now
+                except Exception as exc:
+                    self.fault = "servo hold refresh failed: %s" % exc
+                    self.log("HOLD_REFRESH_FAILED %s" % exc)
+                    print(self.fault)
+                    return False
             return True
         try:
             max_move = max(abs(next_raw[servo_id] - self.command_raw[servo_id]) for servo_id in self.servo_ids)
@@ -613,6 +625,7 @@ class JetsonWorkspaceSampler(object):
             targets = [(servo_id, next_raw[servo_id]) for servo_id in self.servo_ids]
             self.driver.set_servo_positions(targets, time_ms)
             self.command_raw = dict(next_raw)
+            self.last_command_refresh = time.time()
             return True
         except Exception as exc:
             self.fault = "servo send failed: %s" % exc
@@ -838,6 +851,7 @@ def parse_args(argv):
     parser.add_argument("--speed-z-mm-s", type=float, default=DEFAULT_SPEED_Z_MM_S)
     parser.add_argument("--max-servo-raw-s", type=float, default=DEFAULT_MAX_SERVO_RAW_S)
     parser.add_argument("--max-feedback-lead-ticks", type=int, default=DEFAULT_MAX_FEEDBACK_LEAD_TICKS)
+    parser.add_argument("--hold-refresh-sec", type=float, default=0.5)
     parser.add_argument("--startup-home-raw-s", type=float, default=DEFAULT_STARTUP_HOME_RAW_S)
     parser.add_argument("--z-min-mm", type=float, default=DEFAULT_Z_MIN_MM)
     parser.add_argument("--z-max-mm", type=float, default=DEFAULT_Z_MAX_MM)
