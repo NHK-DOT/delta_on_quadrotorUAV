@@ -80,11 +80,30 @@ def load_tool_camera_transform(args: argparse.Namespace) -> Matrix:
     raise ValueError("could not find tool camera transform key %r in %s" % (key, args.calibration))
 
 
-def load_base_tool_transform(args: argparse.Namespace) -> Matrix:
+def load_base_tool_payload(args: argparse.Namespace) -> Dict[str, Any]:
     if args.base_tool_json:
-        return matrix_from_transform(read_json(args.base_tool_json))
+        payload = read_json(args.base_tool_json)
+        return {
+            "matrix": matrix_from_transform(payload),
+            "source": args.base_tool_json,
+            "mode": payload.get("mode", "servo_feedback"),
+            "timestamp": payload.get("timestamp"),
+            "raw": payload.get("raw"),
+            "tool_position_base_m": payload.get("tool_position_base_m"),
+        }
     if args.base_tool_rpy:
-        return transform_from_rpy(args.base_tool_rpy)
+        return {
+            "matrix": transform_from_rpy(args.base_tool_rpy),
+            "source": "--base-tool-rpy",
+            "mode": "static_rpy_simulated",
+            "timestamp": None,
+            "raw": None,
+            "tool_position_base_m": {
+                "x": float(args.base_tool_rpy[0]),
+                "y": float(args.base_tool_rpy[1]),
+                "z": float(args.base_tool_rpy[2]),
+            },
+        }
     raise ValueError("provide --base-tool-json or --base-tool-rpy")
 
 
@@ -93,44 +112,94 @@ def fetch_latest(url: str) -> Dict[str, Any]:
         return json.loads(response.read().decode("utf-8"))
 
 
+def source_timestamp(payload: Dict[str, Any]) -> float:
+    for key in ("timestamp_unix", "timestamp"):
+        value = payload.get(key)
+        if isinstance(value, (int, float)):
+            return float(value)
+    return 0.0
+
+
+def target_center(target: Dict[str, Any]) -> Any:
+    return target.get("center_px") or target.get("center")
+
+
 def build_payload(args: argparse.Namespace, seq: int) -> Dict[str, Any]:
     latest = fetch_latest(args.latest_url)
+    now = time.time()
+    src_ts = source_timestamp(latest)
+    source_age = now - src_ts if src_ts > 0.0 else None
     target = latest.get("target") or {}
     position = target.get("position_camera_m") or target.get("position_m")
+    if source_age is not None and source_age > float(args.max_source_age_sec):
+        return {
+            "valid": False,
+            "status": "stale_source",
+            "timestamp": now,
+            "seq": seq,
+            "source": args.latest_url,
+            "source_timestamp": src_ts,
+            "source_age_sec": round(source_age, 4),
+        }
     if not latest.get("valid") or not position:
         return {
             "valid": False,
             "status": latest.get("status", "no_target_position"),
-            "timestamp": time.time(),
+            "timestamp": now,
             "seq": seq,
             "source": args.latest_url,
+            "source_timestamp": src_ts or None,
+            "source_age_sec": None if source_age is None else round(source_age, 4),
         }
 
-    base_t_tool = load_base_tool_transform(args)
+    base_tool = load_base_tool_payload(args)
+    base_t_tool = base_tool["matrix"]
     tool_t_camera = load_tool_camera_transform(args)
     base_t_camera = matmul(base_t_tool, tool_t_camera)
     camera_point = [float(position["x"]), float(position["y"]), float(position["z"])]
     base_point = transform_point(base_t_camera, camera_point)
 
-    now = time.time()
+    status = "ok"
+    warnings = []
+    if base_tool["mode"] == "static_rpy_simulated":
+        status = "ok_simulated_base_tool"
+        warnings.append("base_T_tool is static/simulated; use BASE_TOOL_JSON from servo feedback for real grasp planning")
+
     return {
         "valid": True,
-        "status": "ok",
+        "status": status,
+        "warnings": warnings,
         "seq": seq,
         "timestamp": now,
-        "source_timestamp": latest.get("timestamp_unix", latest.get("timestamp")),
-        "source_age_sec": round(now - float(latest.get("timestamp_unix", now)), 4),
+        "source": args.latest_url,
+        "source_timestamp": src_ts or None,
+        "source_age_sec": None if source_age is None else round(source_age, 4),
         "frames": {
             "base": "delta_base",
             "tool": "tool",
             "camera": "bottom_stereo",
             "object": "wrench",
         },
+        "transforms": {
+            "base_T_tool": {
+                "source": base_tool["source"],
+                "mode": base_tool["mode"],
+                "timestamp": base_tool["timestamp"],
+                "raw": base_tool["raw"],
+                "tool_position_base_m": base_tool["tool_position_base_m"],
+            },
+            "tool_T_camera": {
+                "source": args.tool_camera_json or args.calibration,
+                "key": args.calibration_tool_key,
+            },
+        },
         "target": {
             "class": target.get("class", "wrench"),
             "confidence": target.get("conf"),
             "box": target.get("box"),
-            "center_px": target.get("center_px"),
+            "center_px": target_center(target),
+            "offset_px": target.get("offset"),
+            "image": latest.get("image"),
         },
         "wrench_position_camera_m": {
             "x": round(camera_point[0], 5),
@@ -174,6 +243,7 @@ def main() -> int:
     parser.add_argument("--udp-host", default="")
     parser.add_argument("--udp-port", type=int, default=0)
     parser.add_argument("--rate-hz", type=float, default=10.0)
+    parser.add_argument("--max-source-age-sec", type=float, default=0.75)
     parser.add_argument("--once", action="store_true")
     args = parser.parse_args()
 

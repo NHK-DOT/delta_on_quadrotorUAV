@@ -4,8 +4,9 @@ set -euo pipefail
 REPO_DIR="${REPO_DIR:-/home/nvidia/Desktop/78arm}"
 CONTROL_UDP_HOST="${CONTROL_UDP_HOST:-}"
 CONTROL_UDP_PORT="${CONTROL_UDP_PORT:-0}"
-BASE_TOOL_JSON="${BASE_TOOL_JSON:-}"
+BASE_TOOL_JSON="${BASE_TOOL_JSON:-${REPO_DIR}/Dual_Camera_HandEye/output/base_tool_from_servo_latest.json}"
 RATE_HZ="${RATE_HZ:-10}"
+MAX_SOURCE_AGE_SEC="${MAX_SOURCE_AGE_SEC:-0.75}"
 
 cd "${REPO_DIR}"
 mkdir -p Dual_Camera_HandEye/output Dual_Camera_HandEye/Log
@@ -24,15 +25,17 @@ ARGS=(
   --calibration-tool-key object_camera
   --output Dual_Camera_HandEye/output/fused_wrench_pose_latest.json
   --rate-hz "${RATE_HZ}"
+  --max-source-age-sec "${MAX_SOURCE_AGE_SEC}"
 )
 
-if [ -n "${BASE_TOOL_JSON}" ]; then
+if [ -n "${BASE_TOOL_JSON}" ] && [ -f "${BASE_TOOL_JSON}" ]; then
   ARGS+=(--base-tool-json "${BASE_TOOL_JSON}")
 else
   if [ -n "${CONTROL_UDP_HOST}" ] && [ "${CONTROL_UDP_PORT}" != "0" ]; then
     echo "Refusing UDP publish without BASE_TOOL_JSON for real base_T_tool." >&2
     exit 2
   fi
+  echo "Warning: BASE_TOOL_JSON missing; using simulated base_T_tool for visualization only." >&2
   ARGS+=(--base-tool-rpy 0 0 -0.28 0 0 0)
 fi
 

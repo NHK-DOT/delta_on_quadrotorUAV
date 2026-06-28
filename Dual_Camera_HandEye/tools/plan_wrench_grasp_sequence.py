@@ -38,6 +38,18 @@ def clamp_xy_radius(x, y, limit):
     return x, y
 
 
+def workspace_violation(x, y, z, args):
+    radius = math.sqrt(x * x + y * y)
+    violations = []
+    if float(args.xy_limit_mm) > 0.0 and radius > float(args.xy_limit_mm):
+        violations.append("xy_radius %.3f > %.3f" % (radius, float(args.xy_limit_mm)))
+    if z < float(args.z_min_mm):
+        violations.append("z %.3f < %.3f" % (z, float(args.z_min_mm)))
+    if z > float(args.z_max_mm):
+        violations.append("z %.3f > %.3f" % (z, float(args.z_max_mm)))
+    return violations
+
+
 def waypoint(name, x, y, z, gripper, speed):
     return {
         "name": name,
@@ -61,6 +73,56 @@ def build_sequence(args):
     x = float(wrench["x"]) * 1000.0 + float(args.grasp_offset_x_mm)
     y = float(wrench["y"]) * 1000.0 + float(args.grasp_offset_y_mm)
     z = float(wrench["z"]) * 1000.0 + float(args.grasp_offset_z_mm)
+
+    source_age = fused.get("source_age_sec")
+    if isinstance(source_age, (int, float)) and source_age > float(args.max_source_age_sec):
+        return {
+            "valid": False,
+            "status": "stale_fused_pose",
+            "timestamp": time.time(),
+            "source": str(args.fused_pose),
+            "source_seq": fused.get("seq"),
+            "source_age_sec": source_age,
+        }
+
+    transform_mode = fused.get("transforms", {}).get("base_T_tool", {}).get("mode")
+    if transform_mode == "static_rpy_simulated" and not args.allow_simulated_base_tool:
+        return {
+            "valid": False,
+            "status": "simulated_base_tool_rejected",
+            "timestamp": time.time(),
+            "source": str(args.fused_pose),
+            "source_seq": fused.get("seq"),
+            "reason": "planner requires BASE_TOOL_JSON from servo feedback unless --allow-simulated-base-tool is set",
+        }
+
+    original = {"x": x, "y": y, "z": z}
+    violations = workspace_violation(x, y, z, args)
+    if violations and not args.allow_workspace_clamp:
+        return {
+            "valid": False,
+            "status": "out_of_workspace",
+            "timestamp": time.time(),
+            "source": str(args.fused_pose),
+            "source_seq": fused.get("seq"),
+            "violations": violations,
+            "object": {
+                "class": "wrench",
+                "confidence": fused.get("target", {}).get("confidence"),
+                "position_base_mm": {
+                    "x": round(original["x"], 3),
+                    "y": round(original["y"], 3),
+                    "z": round(original["z"], 3),
+                },
+            },
+            "safety": {
+                "dry_run": bool(args.dry_run),
+                "xy_limit_mm": float(args.xy_limit_mm),
+                "z_min_mm": float(args.z_min_mm),
+                "z_max_mm": float(args.z_max_mm),
+                "requires_executor_confirmation": True,
+            },
+        }
 
     x, y = clamp_xy_radius(x, y, float(args.xy_limit_mm))
     z = clamp(z, float(args.z_min_mm), float(args.z_max_mm))
@@ -103,10 +165,16 @@ def build_sequence(args):
             "z_min_mm": float(args.z_min_mm),
             "z_max_mm": float(args.z_max_mm),
             "requires_executor_confirmation": True,
+            "allow_workspace_clamp": bool(args.allow_workspace_clamp),
         },
         "object": {
             "class": "wrench",
             "confidence": fused.get("target", {}).get("confidence"),
+            "unclamped_position_base_mm": {
+                "x": round(original["x"], 3),
+                "y": round(original["y"], 3),
+                "z": round(original["z"], 3),
+            },
             "position_base_mm": {"x": round(x, 3), "y": round(y, 3), "z": round(z, 3)},
         },
         "sequence": points,
@@ -144,6 +212,9 @@ def main():
     parser.add_argument("--travel-speed-mm-s", type=float, default=35.0)
     parser.add_argument("--approach-speed-mm-s", type=float, default=18.0)
     parser.add_argument("--grasp-speed-mm-s", type=float, default=8.0)
+    parser.add_argument("--max-source-age-sec", type=float, default=1.0)
+    parser.add_argument("--allow-workspace-clamp", action="store_true")
+    parser.add_argument("--allow-simulated-base-tool", action="store_true")
     args = parser.parse_args()
 
     payload = build_sequence(args)
