@@ -8,6 +8,44 @@ hand-eye vision experiments, and the current real-machine Delta arm controller.
 License: GNU GPL v3.0. See [LICENSE](LICENSE). Upstream MIT notices are kept in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
+## STM32MP257 UWB Flight-Control Integration
+
+The current competition system uses the **STM32MP257F-DK as the main onboard
+mission controller**. The STM32MP257 side runs ROS 2, MAVROS integration,
+UWB AOA parsing, flight-state monitoring, task-state-machine logic, velocity
+setpoint generation, and arm/grasp coordination. Jetson Xavier NX is used as a
+vision co-processor for AprilTag/YOLO/hand-eye perception, while the flight
+controller keeps the attitude, altitude, optical-flow/local-position, and basic
+flight-control loops closed.
+
+The STM32MP257/UWB/flight-control workspace from the UAV teammate repository is
+merged under:
+
+```text
+STM32MP257_UWB_FlightControl/
+```
+
+Main ROS 2 packages in that workspace:
+
+- `uwb_driver`: UWB AOA serial parsing, filtering, and topic publishing.
+- `uwb_navigation`: indoor no-GPS mission state machine, UWB approach, takeoff,
+  hover, return, landing, and bench-test launch files.
+- `fcu_bridge`: MAVROS/flight-controller bridge, FCU state monitoring, command
+  service, and velocity setpoint forwarding.
+- `safety`: failsafe management and safety-check scaffolding.
+- `vision_bridge`: Jetson/vision result bridge and coordinate transform hooks.
+- `delta_kinematics`: Delta-arm kinematics package for grasp-side integration.
+
+High-level mission chain:
+
+```text
+UWB coarse approach
+  -> Jetson vision / hand-eye fine localization
+  -> STM32MP257 mission decision and command generation
+  -> flight-controller attitude/local-position control
+  -> Delta arm grasp, return, drop, and landing
+```
+
 ## UAV Integration Photos
 
 Current integration shots for the UAV-mounted arm and the supporting power and

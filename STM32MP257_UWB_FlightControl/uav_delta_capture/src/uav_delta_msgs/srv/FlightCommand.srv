@@ -1,0 +1,13 @@
+# Flight command service
+int32 CMD_ARM=0
+int32 CMD_DISARM=1
+int32 CMD_MODE_GUIDED=2
+int32 CMD_MODE_LOITER=3
+int32 CMD_MODE_LAND=4
+int32 CMD_TAKEOFF=5
+
+int32 command
+float32 param            # e.g. takeoff altitude in meters
+---
+bool success
+string message

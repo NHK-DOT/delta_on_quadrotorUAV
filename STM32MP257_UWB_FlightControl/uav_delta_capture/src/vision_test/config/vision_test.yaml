@@ -1,0 +1,15 @@
+vision_test_node:
+  ros__parameters:
+    model_path: "/usr/local/x-linux-ai/people-tracking-heatmap/models/yolov8n_people/yolov8n_320_quant_pt_uf_od_coco-person-st.nb"
+    input_size: 320                         # inference input resolution
+    use_npu: true                           # use stai_mpu NPU for .nb models
+    num_iterations: 100                     # benchmark iterations
+    warmup_iterations: 10                   # warmup iterations (not counted)
+    mode: synthetic                         # synthetic | subscribe | v4l2
+    image_topic: /camera/image_raw          # topic for subscribe mode
+    report_path: /tmp/vision_test_report.txt
+    conf_thresh: 0.25                       # detection confidence threshold
+    camera_device: /dev/video7              # V4L2 device for v4l2 mode
+    camera_width: 640                       # capture width
+    camera_height: 480                      # capture height
+    save_frames: false                      # save detection frames to /tmp/vision_test_frames/

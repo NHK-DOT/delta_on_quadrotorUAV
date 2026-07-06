@@ -1,0 +1,41 @@
+uwb_mission_planner_node:
+  ros__parameters:
+    # 话题
+    uwb_aoa_topic: uwb_aoa/data
+    fcu_state_topic: fcu_state
+    fcu_link_topic: fcu_link/status
+    cmd_vel_topic: cmd_vel
+    mission_state_topic: uwb_mission/state
+    mission_event_topic: uwb_mission/event
+    flight_command_service: flight_command
+
+    # 路径参数
+    takeoff_altitude: 1.5      # 起飞高度 (m)
+    descend_altitude: 0.5      # 下降目标高度 (m)
+    altitude_tolerance: 0.15   # 高度容差 (m)
+
+    # 控制参数
+    kp_horizontal: 0.4         # 水平比例增益
+    kp_vertical: 0.3           # 垂直比例增益
+    ki_horizontal: 0.0         # 水平积分增益 (0=禁用)
+    ki_vertical: 0.0           # 垂直积分增益 (0=禁用)
+    kd_horizontal: 0.0         # 水平微分增益 (0=禁用, 预留)
+    kd_vertical: 0.0           # 垂直微分增益 (0=禁用, 预留)
+    integral_limit: 1.0        # 积分限幅 (m·s)
+    lp_filter_alpha: 0.3       # 低通滤波系数 (0.01~0.99)
+    max_vel_xy: 0.5            # 最大水平速度 (m/s)
+    max_vel_z: 0.3             # 最大垂直速度 (m/s)
+    max_accel_xy: 0.3          # 最大水平加速度 (m/s²)
+    max_accel_z: 0.2           # 最大垂直加速度 (m/s²)
+
+    # 死区参数
+    horizontal_deadband: 0.15  # 水平死区 (m)
+    azimuth_deadband: 3.0      # 方位角死区 (°)
+
+    # 稳定检测
+    hover_stable_time: 2.0     # 悬停稳定时间 (s)
+    control_rate_hz: 20.0      # 控制频率 (Hz)
+
+    # 安全参数
+    uwb_signal_timeout: 3.0    # UWB 信号超时 (s)
+    low_battery_pct: 20.0      # 低电量阈值 (%)

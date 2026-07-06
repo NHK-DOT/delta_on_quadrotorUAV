@@ -1,0 +1,50 @@
+test_mission_node:
+  ros__parameters:
+    # Backward-compatible alias for the real full mission profile.
+    uwb_aoa_topic: uwb_aoa/data
+    fcu_state_topic: fcu_state
+    local_pose_topic: /mavros/local_position/pose
+    fcu_link_topic: fcu_link/status
+    cmd_vel_topic: cmd_vel
+    mission_state_topic: test_mission/state
+    mission_event_topic: test_mission/event
+    flight_command_service: flight_command
+
+    mission_mode: real_full
+    use_mock: false
+    desktop_test: false
+    arm_mode: ALT_HOLD
+
+    fake_grasp: true
+    fake_grasp_delay_sec: 10.0
+    grasp_timeout_sec: 15.0
+    fake_drop: true
+    fake_drop_delay_sec: 2.0
+    drop_timeout_sec: 10.0
+    grasp_done_topic: grasp_done
+    drop_done_topic: drop_done
+
+    takeoff_altitude: 1.5
+    descend_altitude: 0.5
+    kp_horizontal: 0.4
+    kp_vertical: 0.3
+    kp_return: 0.5
+    max_vel_xy: 0.5
+    max_vel_z: 0.3
+    velocity_slew_rate: 0.4
+
+    azimuth_deadband: 3.0
+    horizontal_deadband: 0.15
+    altitude_tolerance: 0.15
+    return_xy_tolerance: 0.3
+
+    hover_stable_time: 2.0
+    control_rate_hz: 20.0
+
+    require_uwb_ready: true
+    require_local_pose_ready: true
+    uwb_signal_timeout: 3.0
+    local_pose_timeout: 1.0
+    low_battery_pct: 20.0
+    recovery_timeout: 3.0
+    auto_modes: GUIDED

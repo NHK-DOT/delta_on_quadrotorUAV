@@ -5,6 +5,38 @@ English README: [README.md](README.md)
 开源协议：GNU GPL v3.0，见 [LICENSE](LICENSE)。上游 MIT 项目的版权声明保留在
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。
 
+## STM32MP257 UWB 飞控协同集成
+
+当前嵌赛系统以 **STM32MP257F-DK 作为板端任务主控**。STM32MP257 侧运行 ROS 2、
+MAVROS 集成、UWB AOA 数据解析、飞控状态监测、任务状态机、速度指令生成和机械臂
+抓取/投放协同逻辑。Jetson Xavier NX 作为视觉协处理单元，负责 AprilTag、YOLO、
+手眼标定等视觉感知任务；飞控负责姿态、高度、光流/本地位置和基础飞行闭环控制。
+
+队友仓库中的 STM32MP257、UWB、飞控和任务状态机工程已合入到：
+
+```text
+STM32MP257_UWB_FlightControl/
+```
+
+主要 ROS 2 包包括：
+
+- `uwb_driver`：UWB AOA 串口采集、协议解析、滤波和话题发布。
+- `uwb_navigation`：无 GPS 室内任务状态机、UWB 接近、起飞、悬停、返航、降落和测试 launch。
+- `fcu_bridge`：MAVROS/飞控桥接、飞控状态监测、命令服务和速度 setpoint 转发。
+- `safety`：安全检查和 failsafe 管理框架。
+- `vision_bridge`：Jetson 视觉结果桥接和坐标转换接口。
+- `delta_kinematics`：Delta 机械臂运动学包，用于抓取侧联动。
+
+整体任务链路：
+
+```text
+UWB 粗定位接近
+  -> Jetson 视觉/手眼精定位
+  -> STM32MP257 任务决策与指令生成
+  -> 飞控姿态/本地位置闭环控制
+  -> Delta 机械臂抓取、返航、投放和降落
+```
+
 ## 无人机集成照片
 
 下面这些是当前无人机挂载与相关电源、传感器、布线的集成照片。

@@ -1,0 +1,9 @@
+attitude_publisher_node:
+  ros__parameters:
+    # 订阅的话题
+    local_pose_topic: /mavros/local_position/pose
+    imu_topic: /mavros/imu/data
+
+    # 发布的话题
+    local_attitude_topic: fcu/local_attitude
+    imu_attitude_topic: fcu/imu_attitude

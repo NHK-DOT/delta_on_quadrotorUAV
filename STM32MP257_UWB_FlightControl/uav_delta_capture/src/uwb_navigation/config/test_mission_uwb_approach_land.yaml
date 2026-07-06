@@ -1,0 +1,91 @@
+test_mission_node:
+  ros__parameters:
+    # Topics
+    uwb_aoa_topic: uwb_aoa/data
+    fcu_state_topic: fcu_state
+    local_pose_topic: /mavros/local_position/pose
+    mavros_state_topic: /mavros/state
+    rangefinder_topic: /mavros/rangefinder_pub
+    optical_flow_topic: /mavros/optical_flow/raw/optical_flow
+    fcu_link_topic: fcu_link/status
+    cmd_vel_topic: cmd_vel
+    mission_state_topic: test_mission/state
+    mission_event_topic: test_mission/event
+    flight_command_service: flight_command
+
+    # Mode: low-altitude prop-on test before real_full.
+    mission_mode: uwb_approach_land
+    use_mock: false
+    desktop_test: false
+    arm_mode: ALT_HOLD
+
+    # Proven GUIDED takeoff/land baseline plus a conservative UWB approach.
+    takeoff_altitude: 0.6
+    takeoff_method: mavros
+    takeoff_climb_velocity: 0.12
+    takeoff_command_delay_sec: 1.5
+    takeoff_height_timeout_sec: 15.0
+    descend_altitude: 0.5
+    hover_stable_time: 2.0
+    max_vel_xy: 0.15
+    max_vel_z: 0.15
+    velocity_slew_rate: 0.2
+    altitude_tolerance: 0.15
+    control_rate_hz: 20.0
+    land_ground_rel_alt_threshold: 0.12
+    land_ground_stable_sec: 1.5
+    land_wait_timeout_sec: 12.0
+
+    # UWB approach envelope.
+    kp_horizontal: 0.25
+    kp_vertical: 0.25
+    azimuth_deadband: 5.0
+    horizontal_deadband: 0.25
+    # BODY_NED UWB approach mapping:
+    # azimuth_offset subtracts fixed UWB mounting yaw; signs are quick field calibration knobs.
+    uwb_azimuth_offset_deg: 0.0
+    uwb_forward_sign: 1.0
+    uwb_lateral_sign: 1.0
+    uwb_capture_radius_m: 0.55
+    uwb_slow_radius_m: 1.0
+    uwb_slow_max_vel_xy: 0.08
+    uwb_target_hover_time_sec: 0.8
+    uwb_approach_front_sector_deg: 65.0
+    uwb_capture_front_sector_deg: 55.0
+    uwb_front_sector_timeout_sec: 2.0
+    uwb_capture_stable_sec: 0.3
+    uwb_out_of_front_action: LAND
+    mission_soft_radius_m: 2.0
+    mission_hard_radius_m: 2.5
+    move_above_timeout_sec: 20.0
+    uwb_missing_timeout_sec: 3.0
+
+    # This test requires all flight observation links plus UWB.
+    require_uwb_ready: true
+    require_local_pose_ready: true
+    uwb_signal_timeout: 3.0
+    local_pose_timeout: 1.0
+    bench_sensor_timeout: 2.0
+    low_battery_pct: 20.0
+    recovery_timeout: 3.0
+    set_mode_service_timeout_sec: 8.0
+    mode_confirm_timeout_sec: 8.0
+    auto_modes: GUIDED
+
+    # Unused by this mode, kept for shared node parameters.
+    fake_grasp: true
+    fake_grasp_delay_sec: 10.0
+    grasp_timeout_sec: 15.0
+    fake_drop: true
+    fake_drop_delay_sec: 2.0
+    drop_timeout_sec: 10.0
+    grasp_done_topic: grasp_done
+    drop_done_topic: drop_done
+    kp_return: 0.5
+    return_xy_tolerance: 0.3
+    bench_velocity_z: 0.15
+    bench_climb_sec: 2.0
+    bench_hold_sec: 2.0
+    bench_descend_sec: 2.0
+    bench_zero_sec: 1.0
+    bench_exit_on_complete: true
