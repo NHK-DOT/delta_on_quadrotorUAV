@@ -266,6 +266,52 @@ PORT=/dev/ttyUSB1 HAND_TAG_ID=3 bash run_sampler_py36_jetson.sh
 
 当前拆掉机械结构后的舵机本体 home 反馈已经写入配置：servo 1/2/3 分别是 `750`、`762`、`758`。三个主舵机当前都使用 `0..1000` raw 映射范围，`home_raw` 和 `startup_check_raw` 都同步到这些实测 home 值。
 
+## 视觉抓取 demo
+
+主线控制侧的视觉抓取 demo 已经落在 Jetson Python 3.6 现场目录：
+
+```text
+Delta_Gcode_Servo/real_machine_test/jetson_py36/jetson_wrench_grasp_demo_py36.py
+```
+
+它默认是 dry-run：读取 `Dual_Camera_HandEye/output/wrench_grasp_sequence_latest.json`，
+把 `home -> pregrasp -> approach -> grasp -> lift -> return_home` 每个点都过一遍
+Jetson 主线 IK/raw 映射，写出 `wrench_grasp_demo_status.json`，但不打开舵机串口。
+
+先启动扳手融合位姿和抓取序列规划器：
+
+```bash
+cd ~/Desktop/78arm
+bash Dual_Camera_HandEye/tools/start_fused_wrench_pose_publisher_jetson.sh
+bash Dual_Camera_HandEye/tools/start_wrench_grasp_planner_jetson.sh
+```
+
+然后在控制目录先检查 dry-run：
+
+```bash
+cd ~/Desktop/78arm/Delta_Gcode_Servo/real_machine_test/jetson_py36
+python3 jetson_wrench_grasp_demo_py36.py
+```
+
+实机执行必须显式加 `--execute`，并且脚本仍会先读反馈、检查 raw 范围、必要时要求
+输入 `HOME`，最后要求输入 `GRASP` 才发送运动包。4 号夹爪的开合 raw 方向依赖真实连杆，
+只填现场验证过的 raw：
+
+```bash
+python3 jetson_wrench_grasp_demo_py36.py \
+  --execute \
+  --port /dev/ttyUSB0 \
+  --gripper-mode servo4 \
+  --gripper-open-raw <verified_open_raw> \
+  --gripper-close-raw <verified_close_raw>
+```
+
+没有实时视觉序列时，可以先用固定目标点做控制侧 dry-run：
+
+```bash
+python3 jetson_wrench_grasp_demo_py36.py --target-xyz-mm 0 0 190
+```
+
 ## 手柄控制
 
 进入采样控制后，脚本会再次要求输入 `YES`，确认后才允许发送低速舵机命令。

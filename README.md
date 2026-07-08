@@ -386,6 +386,60 @@ The sampler writes `samples.csv` and `samples.jsonl` under:
 Delta_Gcode_Servo/real_machine_test/jetson_py36/samples/YYYYMMDD_HHMMSS/
 ```
 
+## Wrench Grasp Demo / Jetson Mainline
+
+The current control-side grasp demo lives in the Python 3.6 Jetson mainline:
+
+```text
+Delta_Gcode_Servo/real_machine_test/jetson_py36/jetson_wrench_grasp_demo_py36.py
+```
+
+It consumes the conservative grasp sequence from:
+
+```text
+Dual_Camera_HandEye/output/wrench_grasp_sequence_latest.json
+```
+
+Start the fused wrench pose publisher and sequence planner after the RGB/depth
+wrench detector is already publishing `http://127.0.0.1:8090/latest.json`:
+
+```bash
+cd ~/Desktop/78arm
+bash Dual_Camera_HandEye/tools/start_fused_wrench_pose_publisher_jetson.sh
+bash Dual_Camera_HandEye/tools/start_wrench_grasp_planner_jetson.sh
+```
+
+Check the exact arm waypoints and raw targets without opening the servo serial
+port:
+
+```bash
+cd ~/Desktop/78arm/Delta_Gcode_Servo/real_machine_test/jetson_py36
+python3 jetson_wrench_grasp_demo_py36.py
+```
+
+The live execution path keeps the same startup safety pattern as the sampler:
+read feedback first, reject out-of-range raw values, require `HOME` if the arm
+is not near `startup_check_raw`, then require a typed `GRASP` before sending any
+move packet. Servo 4 gripper direction is mechanism-dependent, so use only raw
+values that were verified on the real linkage:
+
+```bash
+python3 jetson_wrench_grasp_demo_py36.py \
+  --execute \
+  --port /dev/ttyUSB0 \
+  --gripper-mode servo4 \
+  --gripper-open-raw <verified_open_raw> \
+  --gripper-close-raw <verified_close_raw>
+```
+
+For a controller-only smoke test without the vision planner, pass an explicit
+target in delta-base millimeters. This still defaults to dry-run unless
+`--execute` is present:
+
+```bash
+python3 jetson_wrench_grasp_demo_py36.py --target-xyz-mm 0 0 190
+```
+
 Fit the workspace model after sampling:
 
 ```bash

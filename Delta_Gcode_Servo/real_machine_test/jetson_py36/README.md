@@ -83,6 +83,53 @@ python3 jetson_workspace_preflight.py --port /dev/ttyUSB0 --hand-tag-id 3
 
 舵机驱动板 `0x15` 反馈按有符号 int16 解释。例如 `0xFF43` 应看作 `-189`，不是无符号的 `65347`。`startup_check_raw` 是只读自检位，`home_raw` 是采样控制放行后的运动映射参考位。当前拆掉机械结构后的舵机本体 home 反馈已经写入配置：servo 1/2/3 分别是 `750`、`762`、`758`，三个主舵机当前都使用 `0..1000` raw 映射范围。
 
+## Wrench grasp demo
+
+This directory also contains the current control-side demo for the visual
+target grasp flow:
+
+```bash
+python3 jetson_wrench_grasp_demo_py36.py
+```
+
+The default mode is dry-run. It reads
+`Dual_Camera_HandEye/output/wrench_grasp_sequence_latest.json`, checks every
+home/pregrasp/approach/grasp/lift/return-home waypoint through the Jetson
+IK/raw mapping, writes `wrench_grasp_demo_status.json`, and does not open the
+servo serial port.
+
+Before using vision input, start the fused pose publisher and sequence planner
+from the repository root:
+
+```bash
+cd ~/Desktop/78arm
+bash Dual_Camera_HandEye/tools/start_fused_wrench_pose_publisher_jetson.sh
+bash Dual_Camera_HandEye/tools/start_wrench_grasp_planner_jetson.sh
+```
+
+Real execution requires explicit opt-in and typed confirmation:
+
+```bash
+cd ~/Desktop/78arm/Delta_Gcode_Servo/real_machine_test/jetson_py36
+python3 jetson_wrench_grasp_demo_py36.py \
+  --execute \
+  --port /dev/ttyUSB0 \
+  --gripper-mode servo4 \
+  --gripper-open-raw <verified_open_raw> \
+  --gripper-close-raw <verified_close_raw>
+```
+
+The script keeps the sampler-style startup guard: feedback read first,
+configured raw-range check, optional typed `HOME` return, then typed `GRASP`.
+If the gripper raw direction has not been verified on the real linkage, run
+with the default `--gripper-mode none` first and check only the arm sequence.
+
+For a controller-only smoke test without a live vision sequence:
+
+```bash
+python3 jetson_wrench_grasp_demo_py36.py --target-xyz-mm 0 0 190
+```
+
 ## 手柄控制
 
 进入采样控制后会再次要求输入 `YES`，确认后才允许发送低速舵机命令。

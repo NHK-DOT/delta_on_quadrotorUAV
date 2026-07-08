@@ -35,6 +35,7 @@ COPY_ITEMS = [
     Path("lx225_tool_demo/config/lx225_tool.demo.toml"),
     Path("Dual_Camera_HandEye/output/calibration_result.json"),
     Path("Dual_Camera_HandEye/src/dual_handeye"),
+    Path("Dual_Camera_HandEye/tools"),
 ]
 
 
@@ -199,7 +200,8 @@ def deploy(args):
             "cd {root}/Delta_Gcode_Servo/real_machine_test/jetson_py36 && "
             "chmod +x run_sampler_py36_jetson.sh *.py && "
             "python3 -m py_compile jetson_workspace_common.py "
-            "jetson_workspace_preflight.py jetson_apriltag_workspace_sampler_py36.py"
+            "jetson_workspace_preflight.py jetson_apriltag_workspace_sampler_py36.py "
+            "jetson_wrench_image_follower_py36.py jetson_wrench_grasp_demo_py36.py"
         ).format(root=args.remote_root)
         rc, out, err = exec_checked(client, cmd)
         if out:
