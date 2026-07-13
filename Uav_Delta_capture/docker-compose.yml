@@ -1,0 +1,12 @@
+services:
+  ros2_humble:
+    image: my_ros2_humble:latest
+    container_name: ros2humble
+    restart: unless-stopped
+    working_dir: /workspace/uav_delta_capture
+    volumes:
+      - .:/workspace
+    stdin_open: true
+    tty: true
+    command: bash
+    network_mode: host

@@ -1,0 +1,12 @@
+vision_transform_node:
+  ros__parameters:
+    # 坐标系
+    camera_frame: camera_optical_frame
+    target_frame: delta_base_link
+
+    # 话题
+    vision_offset_topic: vision/target_offset
+    target_point_topic: target_point
+
+    # TF 超时
+    tf_timeout_sec: 0.05

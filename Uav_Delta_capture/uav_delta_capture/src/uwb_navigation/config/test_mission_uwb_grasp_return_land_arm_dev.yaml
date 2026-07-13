@@ -1,0 +1,144 @@
+test_mission_node:
+  ros__parameters:
+    # Topics
+    uwb_aoa_topic: uwb_aoa/data
+    fcu_state_topic: fcu_state
+    local_pose_topic: /mavros/local_position/pose
+    mavros_state_topic: /mavros/state
+    rangefinder_topic: /mavros/rangefinder_pub
+    optical_flow_topic: /mavros/optical_flow/raw/optical_flow
+    fcu_link_topic: fcu_link/status
+    cmd_vel_topic: cmd_vel
+    mission_state_topic: test_mission/state
+    mission_event_topic: test_mission/event
+    flight_command_service: flight_command
+
+    # Arm-dev baseline: copied from the stable UWB grasp-return-land profile.
+    # Keep this profile isolated for real mechanical-arm integration changes.
+    mission_mode: uwb_approach_grasp_return_land
+    use_mock: false
+    desktop_test: false
+    arm_mode: ALT_HOLD
+
+    # MAVROS takeoff plus conservative UWB approach.
+    takeoff_altitude: 0.75
+    takeoff_method: mavros
+    takeoff_climb_velocity: 0.12
+    takeoff_command_delay_sec: 1.5
+    takeoff_height_timeout_sec: 25.0
+    descend_altitude: 0.55
+    hover_stable_time: 2.0
+    target_hover_time: 2.0
+    return_hover_time: 2.0
+    max_vel_xy: 0.15
+    max_vel_z: 0.15
+    velocity_slew_rate: 0.2
+    altitude_tolerance: 0.12
+    takeoff_transition_tolerance: 0.20
+    control_rate_hz: 20.0
+    land_ground_rel_alt_threshold: 0.12
+    land_ground_stable_sec: 1.5
+    land_wait_timeout_sec: 12.0
+
+    # UWB approach envelope.
+    kp_horizontal: 0.25
+    kp_vertical: 0.25
+    azimuth_deadband: 5.0
+    horizontal_deadband: 0.25
+    uwb_azimuth_offset_deg: 0.0
+    uwb_mount_pitch_down_deg: -45.0
+    uwb_forward_sign: 1.0
+    uwb_lateral_sign: -1.0
+    uwb_capture_radius_m: 0.25
+    uwb_near_capture_min_body_elevation_deg: 65.0
+    uwb_near_capture_radius_m: 0.25
+    uwb_near_capture_stable_sec: 0.8
+    uwb_region_classifier_enabled: true
+    uwb_region_window_sec: 0.4
+    uwb_center_min_body_elevation_deg: 60.0
+    uwb_center_capture_body_elevation_deg: 65.0
+    uwb_center_hold_hdist_m: 0.65
+    uwb_center_capture_hdist_m: 0.25
+    uwb_center_max_abs_forward_m: 0.15
+    uwb_center_max_abs_lateral_m: 0.15
+    uwb_center_raw_elevation_min_deg: 30.0
+    uwb_center_raw_elevation_max_deg: 55.0
+    uwb_preland_hdist_m: 0.35
+    uwb_preland_max_abs_forward_m: 0.18
+    uwb_preland_max_abs_lateral_m: 0.25
+    uwb_preland_lateral_enable_hdist_m: 0.45
+    uwb_preland_lateral_min_body_elevation_deg: 60.0
+    uwb_preland_lateral_deadband_m: 0.05
+    uwb_preland_lateral_kp: 0.12
+    uwb_preland_max_lateral_speed_mps: 0.015
+    uwb_preland_stable_sec: 1.5
+    uwb_preland_timeout_sec: 6.0
+    uwb_preland_timeout_hold_sec: 4.0
+    uwb_preland_retry_limit: 0
+    uwb_center_stable_sec: 0.8
+    uwb_center_creep_speed_mps: 0.02
+    uwb_slow_radius_m: 1.0
+    uwb_slow_max_vel_xy: 0.04
+    uwb_approach_front_sector_deg: 65.0
+    uwb_capture_front_sector_deg: 30.0
+    uwb_front_sector_timeout_sec: 2.0
+    uwb_capture_stable_sec: 0.8
+    uwb_front_stable_sec: 0.5
+    uwb_front_line_lock_deg: 15.0
+    uwb_min_body_elevation_deg: 8.0
+    uwb_out_of_front_action: SCAN
+    uwb_scan_yaw_rate_deg_s: 12.0
+    uwb_scan_timeout_sec: 30.0
+    uwb_scan_lock_front_sector_deg: 15.0
+    uwb_scan_lock_stable_sec: 0.5
+    uwb_scan_settle_sec: 0.5
+    mission_soft_radius_m: 2.0
+    mission_hard_radius_m: 2.5
+    move_above_timeout_sec: 40.0
+    uwb_missing_timeout_sec: 3.0
+
+    # Return uses LOCAL_NED local_position after UWB approach and grasp.
+    kp_waypoint: 0.45
+    waypoint_max_velocity: 0.30
+    waypoint_xy_tolerance: 0.20
+    waypoint_timeout_sec: 12.0
+    kp_return: 0.5
+    return_xy_tolerance: 0.3
+
+    # Real mechanical-arm handshake.
+    fake_grasp: false
+    fake_grasp_delay_sec: 10.0
+    grasp_timeout_sec: 25.0
+    fake_drop: false
+    fake_drop_delay_sec: 2.0
+    drop_timeout_sec: 25.0
+    grasp_command_topic: grasp_command
+    drop_command_topic: drop_command
+    grasp_done_topic: grasp_done
+    drop_done_topic: drop_done
+
+    # This test requires all flight observation links plus UWB.
+    require_uwb_ready: true
+    require_local_pose_ready: true
+    uwb_signal_timeout: 3.0
+    local_pose_timeout: 1.0
+    bench_sensor_timeout: 2.0
+    low_battery_pct: 20.0
+    recovery_timeout: 3.0
+    set_mode_service_timeout_sec: 8.0
+    mode_confirm_timeout_sec: 8.0
+    auto_modes: GUIDED
+
+    # Unused by this mode, kept for shared node parameters.
+    low_hover_time: 4.0
+    waypoint_dx: 1.0
+    waypoint_dy: 0.0
+    forward_target_distance: 1.0
+    forward_velocity: 0.4
+    forward_timeout_sec: 12.0
+    bench_velocity_z: 0.15
+    bench_climb_sec: 2.0
+    bench_hold_sec: 2.0
+    bench_descend_sec: 2.0
+    bench_zero_sec: 1.0
+    bench_exit_on_complete: true

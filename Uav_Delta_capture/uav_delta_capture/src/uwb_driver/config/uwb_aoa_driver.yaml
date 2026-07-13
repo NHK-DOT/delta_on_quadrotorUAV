@@ -1,0 +1,20 @@
+uwb_aoa_driver_node:
+  ros__parameters:
+    # 串口配置
+    serial_port: /dev/ttyUSB0
+    serial_baud: 115200
+
+    # 话题
+    uwb_frame_id: uwb
+    uwb_aoa_topic: uwb_aoa/data
+
+    # 信号超时
+    signal_loss_timeout_sec: 0.2
+    max_range_m: 15.0
+
+    # 状态发布频率
+    status_rate_hz: 10.0
+
+    # 卡尔曼滤波参数
+    kalman_Q: 0.1
+    kalman_R: 0.1

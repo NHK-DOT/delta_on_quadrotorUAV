@@ -1,0 +1,31 @@
+﻿# ROS / colcon generated output
+build/
+install/
+log/
+**/build/
+**/install/
+**/log/
+
+# Python cache
+__pycache__/
+*.py[cod]
+
+# Native build artifacts
+*.o
+*.a
+*.so
+*.out
+
+# Local/editor/system files
+.perm_check
+.DS_Store
+Thumbs.db
+*.swp
+
+# Large files (models, reference materials)
+models/
+uwb-reference/
+
+# Sensitive files
+*.token
+.env

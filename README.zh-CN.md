@@ -48,16 +48,27 @@ UWB 粗定位接近
 
 ## 当前主线
 
-当前现场主线以 `192.168.1.80` 的 Jetson Xavier NX 为准：
+当前现场主线以 `192.168.1.174` 的 Jetson Xavier NX 为准：
 
 ```text
 Delta_Gcode_Servo/real_machine_test/jetson_py36/run_sampler_py36_jetson.sh
 ```
 
+## 无人机与 STM32MP257 集成
+
+无人机 ROS 2 工作空间导入在 [`Uav_Delta_capture/`](Uav_Delta_capture/)；上游来源、固定提交和不回推上游的约束记录在 [`Uav_Delta_capture/UPSTREAM_SOURCE.md`](Uav_Delta_capture/UPSTREAM_SOURCE.md)。本仓库只维护 NX 视觉与机械臂集成修改。
+
+- **STM32MP257**：ROS 2 Humble、UWB、MAVROS、飞控接口、任务状态机、起飞/返航/降落，以及所有飞行控制权限。
+- **Jetson Xavier NX（`192.168.1.174`）**：视觉、手眼标定、Delta 机械臂、蓝牙诊断和只观测上报。
+
+NX 桥接包位于 [`Uav_Delta_capture/nx_arm_bridge/`](Uav_Delta_capture/nx_arm_bridge/)，只发送经校验的目标/抓取观测，不发送飞控、解锁、模式、速度、航点或降落命令。接口定义见 [`MP257_INTERFACE.md`](Uav_Delta_capture/nx_arm_bridge/MP257_INTERFACE.md)，集成报告见 [`docs/README.md`](Uav_Delta_capture/docs/README.md)。
+
+NX 使用独立 Python 3.8 环境 `/home/nvidia/.venvs/78arm-py38`；原 JetPack 4.4 的 Python 3.6 控制路径保留给已有组件，不替换系统解释器。
+
 这条链路把 3K 鱼眼降采样 AprilTag、8BitDo 蓝牙手柄、舵机反馈和工作空间采样放在同一个 Jetson 现场流程里：
 
 ```text
-Jetson Xavier NX 192.168.1.80
+Jetson Xavier NX 192.168.1.174
   -> 3K 鱼眼全 FOV 降采样 AprilTag JSON
   -> jetson_py36 只读自检
   -> 检查 8BitDo 是否连接
@@ -97,7 +108,7 @@ python Delta_Gcode_Servo\real_machine_test\jetson_py36\deploy_to_jetson.py --pas
 登录 Jetson：
 
 ```bash
-ssh nvidia@192.168.1.80
+ssh nvidia@192.168.1.174
 ```
 
 如果 8BitDo 权限还没配置：

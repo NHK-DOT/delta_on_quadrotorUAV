@@ -58,9 +58,35 @@ sensor stack.
 
 Current Jetson field mainline:
 `Delta_Gcode_Servo/real_machine_test/jetson_py36/run_sampler_py36_jetson.sh`.
-It runs on the Jetson Xavier NX at `192.168.1.80` and combines 3K fisheye
+It runs on the Jetson Xavier NX at `192.168.1.174` and combines 3K fisheye
 AprilTag detection, 8BitDo low-speed manual motion, servo feedback preflight,
 and workspace sampling.
+
+## UAV / STM32MP257 Integration
+
+The imported UAV ROS 2 workspace is maintained in
+[`Uav_Delta_capture/`](Uav_Delta_capture/). Its upstream source and fixed
+revision are recorded in [`Uav_Delta_capture/UPSTREAM_SOURCE.md`](Uav_Delta_capture/UPSTREAM_SOURCE.md).
+This repository owns the NX vision-and-arm integration changes; those changes
+must not be pushed to the upstream UAV repository.
+
+The board boundary is strict:
+
+- **STM32MP257:** ROS 2 Humble, UWB, MAVROS, FCU interfaces, mission state
+  machine, takeoff/return/landing, and all flight authority.
+- **Jetson Xavier NX (`192.168.1.174`):** perception, hand-eye calibration,
+  Delta-arm execution, Bluetooth diagnostics, and observation-only reporting.
+
+The NX bridge in [`Uav_Delta_capture/nx_arm_bridge/`](Uav_Delta_capture/nx_arm_bridge/)
+sends only validated target/arm observations to the MP257. It never sends FCU,
+arming, mode, velocity, waypoint, or landing commands. See
+[`MP257_INTERFACE.md`](Uav_Delta_capture/nx_arm_bridge/MP257_INTERFACE.md) for
+the protocol and [`docs/README.md`](Uav_Delta_capture/docs/README.md) for the
+generated integration report.
+
+NX uses an isolated Python 3.8 environment at
+`/home/nvidia/.venvs/78arm-py38`; the legacy Python 3.6 Jetson control path is
+kept for existing JetPack 4.4 components and must not be replaced globally.
 
 ## Project Context
 

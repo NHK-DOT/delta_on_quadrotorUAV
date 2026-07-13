@@ -1,0 +1,7 @@
+delta_kinematics_node:
+  ros__parameters:
+    L1: 100.0
+    L2: 150.0
+    R: 55.0
+    r: 20.0
+    target_topic: target_point

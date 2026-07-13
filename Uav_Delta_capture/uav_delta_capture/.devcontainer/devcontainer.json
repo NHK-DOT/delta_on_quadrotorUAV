@@ -1,0 +1,60 @@
+// {
+//     "name": "ROS 2 Humble Dev",
+//     // 用你当前容器的镜像名替换下面这行
+//     "image": "osrf/ros:humble-desktop",
+//     // 或者如果容器是基于某个docker-compose文件启动的，可以用：
+//     // "dockerComposeFile": "../docker-compose.yaml",
+//     // "service": "你的服务名",
+//     "workspaceFolder": "/workspace",
+//     "mounts": [
+//         "source=${localWorkspaceFolder},target=/workspace,type=bind"
+//     ],
+//     "remoteUser": "root",
+//     "customizations": {
+//         "vscode": {
+//             "extensions": [
+//                 "ms-iot.vscode-ros",
+//                 "ms-python.python",
+//                 "ms-vscode.cpptools"
+//             ]
+//         }
+//     }
+// }
+
+// {
+//     "name": "ROS 2 Humble Drone Dev",
+//     // "dockerComposeFile": "../../docker-compose.yml",
+//     "dockerComposeFile": "../../../docker-compose.yml"
+//     "service": "ros2_humble",
+//     "workspaceFolder": "/workspace",
+//     "remoteUser": "root",
+//     "postCreateCommand": ". /opt/ros/humble/setup.sh && colcon build",
+//     "customizations": {
+//         "vscode": {
+//             "extensions": [
+//                 "ms-iot.vscode-ros",
+//                 "ms-python.python",
+//                 "ms-vscode.cpptools"
+//             ]
+//         }
+//     }
+// }
+
+
+{
+    "name": "ROS 2 Humble Drone Dev",
+    "dockerComposeFile": "../../../../docker-compose.yml",
+    "service": "ros2_humble",
+    "workspaceFolder": "/workspace",
+    "remoteUser": "root",
+    "postCreateCommand": ". /opt/ros/humble/setup.sh && colcon build",
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-iot.vscode-ros",
+                "ms-python.python",
+                "ms-vscode.cpptools"
+            ]
+        }
+    }
+}

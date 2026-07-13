@@ -1,0 +1,13 @@
+services:
+  nx_ros2_diagnostics:
+    image: ros:humble-ros-base-jammy
+    container_name: 78arm-nx-ros2-diagnostics
+    network_mode: host
+    working_dir: /workspace/Uav_Delta_capture/uav_delta_capture
+    volumes:
+      - /home/nvidia/Desktop/78arm:/workspace:rw
+    command: bash
+    stdin_open: true
+    tty: true
+
+# Optional diagnostics only. Never run MAVROS or FCU command nodes on NX.

@@ -1,0 +1,77 @@
+test_mission_node:
+  ros__parameters:
+    # Topics
+    uwb_aoa_topic: uwb_aoa/data
+    fcu_state_topic: fcu_state
+    local_pose_topic: /mavros/local_position/pose
+    mavros_state_topic: /mavros/state
+    rangefinder_topic: /mavros/rangefinder_pub
+    optical_flow_topic: /mavros/optical_flow/raw/optical_flow
+    fcu_link_topic: fcu_link/status
+    cmd_vel_topic: cmd_vel
+    mission_state_topic: test_mission/state
+    mission_event_topic: test_mission/event
+    flight_command_service: flight_command
+
+    # Mode: UWB-free prop-on local-position forward move test.
+    mission_mode: takeoff_forward_land
+    use_mock: false
+    desktop_test: false
+    arm_mode: ALT_HOLD
+
+    # Proven GUIDED takeoff baseline plus a short local-position move.
+    takeoff_altitude: 0.7
+    takeoff_method: mavros
+    takeoff_climb_velocity: 0.12
+    takeoff_command_delay_sec: 1.5
+    takeoff_height_timeout_sec: 15.0
+    descend_altitude: 0.5
+    hover_stable_time: 2.0
+    target_hover_time: 2.0
+    max_vel_xy: 0.2
+    max_vel_z: 0.2
+    velocity_slew_rate: 0.3
+    altitude_tolerance: 0.15
+    control_rate_hz: 20.0
+    land_ground_rel_alt_threshold: 0.12
+    land_ground_stable_sec: 1.5
+    land_wait_timeout_sec: 12.0
+
+    # Body-frame forward move, stopped by local_position horizontal displacement.
+    forward_target_distance: 1.0
+    forward_velocity: 0.4
+    forward_timeout_sec: 12.0
+
+    # This mode validates FCU local_position, not UWB.
+    require_uwb_ready: false
+    require_local_pose_ready: true
+    uwb_signal_timeout: 3.0
+    local_pose_timeout: 1.0
+    bench_sensor_timeout: 2.0
+    low_battery_pct: 20.0
+    recovery_timeout: 3.0
+    set_mode_service_timeout_sec: 8.0
+    mode_confirm_timeout_sec: 8.0
+    auto_modes: GUIDED
+
+    # Unused by this mode, kept for shared node parameters.
+    fake_grasp: true
+    fake_grasp_delay_sec: 10.0
+    grasp_timeout_sec: 15.0
+    fake_drop: true
+    fake_drop_delay_sec: 2.0
+    drop_timeout_sec: 10.0
+    grasp_done_topic: grasp_done
+    drop_done_topic: drop_done
+    kp_horizontal: 0.4
+    kp_vertical: 0.25
+    kp_return: 0.5
+    azimuth_deadband: 3.0
+    horizontal_deadband: 0.15
+    return_xy_tolerance: 0.3
+    bench_velocity_z: 0.15
+    bench_climb_sec: 2.0
+    bench_hold_sec: 2.0
+    bench_descend_sec: 2.0
+    bench_zero_sec: 1.0
+    bench_exit_on_complete: true
