@@ -60,15 +60,8 @@ sensor stack.
 
 | Flight and compute | Vision and arm | Mechanical integration |
 | --- | --- | --- |
-| <img src="images/257.png" alt="STM32MP257 controller" width="300"><br>STM32MP257 mission-control board. | <img src="images/NX.png" alt="Jetson Xavier NX" width="300"><br>Jetson Xavier NX perception and arm computer. | <img src="images/机械臂.png" alt="Delta arm" width="300"><br>Delta-arm integration. |
-| <img src="images/飞控cuav5.png" alt="CUAV V5 flight controller" width="300"><br>CUAV V5 flight controller. | <img src="images/yolo.png" alt="Wrench YOLO detection" width="300"><br>Wrench YOLO perception output. | <img src="images/双目相机架.png" alt="Stereo camera mount" width="300"><br>Stereo camera mounting hardware. |
-
-## System Components
-
-| Flight and compute | Vision and arm | Mechanical integration |
-| --- | --- | --- |
-| <img src="images/257.png" alt="STM32MP257 controller" width="300"><br>STM32MP257 mission-control board. | <img src="images/NX.png" alt="Jetson Xavier NX" width="300"><br>Jetson Xavier NX perception and arm computer. | <img src="images/机械臂.png" alt="Delta arm" width="300"><br>Delta-arm integration. |
-| <img src="images/飞控cuav5.png" alt="CUAV V5 flight controller" width="300"><br>CUAV V5 flight controller. | <img src="images/yolo.png" alt="Wrench YOLO detection" width="300"><br>Wrench YOLO perception output. | <img src="images/双目相机架.png" alt="Stereo camera mount" width="300"><br>Stereo camera mounting hardware. |
+| <img src="images/257.png" alt="STM32MP257 controller" width="230"><br>STM32MP257 mission-control board. | <img src="images/NX.png" alt="Jetson Xavier NX" width="230"><br>Jetson Xavier NX perception and arm computer. | <img src="images/飞控cuav5.png" alt="CUAV V5 flight controller" width="230"><br>CUAV V5 flight controller. |
+| <img src="images/yolo.png" alt="Wrench YOLO detection" width="230"><br>Wrench YOLO perception output. | <img src="images/机械臂.png" alt="Delta arm" width="230"><br>Delta-arm integration. | <img src="images/双目相机架.png" alt="Stereo camera mount" width="230"><br>Stereo camera mounting hardware. |
 
 Current Jetson field mainline:
 `Delta_Gcode_Servo/real_machine_test/jetson_py36/run_sampler_py36_jetson.sh`.
