@@ -1,6 +1,17 @@
 Jetson_Vision_Export/*.tar.gz filter=lfs diff=lfs merge=lfs -text
 Jetson_Vision_Export/yolo_fisheye_calibration_jetson.tar.gz filter=lfs diff=lfs merge=lfs -text
-
+*.stl filter=lfs diff=lfs merge=lfs -text
+*.step filter=lfs diff=lfs merge=lfs -text
+*.stp filter=lfs diff=lfs merge=lfs -text
+*.3mf filter=lfs diff=lfs merge=lfs -text
+*.sldprt filter=lfs diff=lfs merge=lfs -text
+*.sldasm filter=lfs diff=lfs merge=lfs -text
+*.stl filter=lfs diff=lfs merge=lfs -text
+*.step filter=lfs diff=lfs merge=lfs -text
+*.stp filter=lfs diff=lfs merge=lfs -text
+*.3mf filter=lfs diff=lfs merge=lfs -text
+*.sldprt filter=lfs diff=lfs merge=lfs -text
+*.sldasm filter=lfs diff=lfs merge=lfs -text
 Jetson_AprilTag3K/**/*.sh text eol=lf
 Jetson_AprilTag3K/**/*.py text eol=lf
 Jetson_Vision_Export/yolo_fisheye_calibration_jetson/*.sh text eol=lf

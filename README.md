@@ -56,6 +56,20 @@ sensor stack.
 | <img src="images/autostepper_beta_outlook.jpg" alt="Full UAV integration view" width="360"><br>Current full-platform integration view. | <img src="images/45angle_base_on_drone.jpg" alt="UAV-mounted arm at a 45 degree angle" width="360"><br>Arm mounted at a 45 degree angle on the drone platform. | <img src="images/PDBboard_and_wire.jpg" alt="Power distribution board and wiring harness" width="360"><br>Power distribution board and wiring harness during integration. |
 | <img src="images/autostepper_beta.jpg" alt="Main control stack on the platform" width="360"><br>Main control stack, sensor wiring, and mounting frame. | <img src="images/uwb%20beacon.jpg" alt="UWB beacon module" width="360"><br>UWB beacon module and wiring. |  |
 
+## System Components
+
+| Flight and compute | Vision and arm | Mechanical integration |
+| --- | --- | --- |
+| <img src="images/257.png" alt="STM32MP257 controller" width="300"><br>STM32MP257 mission-control board. | <img src="images/NX.png" alt="Jetson Xavier NX" width="300"><br>Jetson Xavier NX perception and arm computer. | <img src="images/机械臂.png" alt="Delta arm" width="300"><br>Delta-arm integration. |
+| <img src="images/飞控cuav5.png" alt="CUAV V5 flight controller" width="300"><br>CUAV V5 flight controller. | <img src="images/yolo.png" alt="Wrench YOLO detection" width="300"><br>Wrench YOLO perception output. | <img src="images/双目相机架.png" alt="Stereo camera mount" width="300"><br>Stereo camera mounting hardware. |
+
+## System Components
+
+| Flight and compute | Vision and arm | Mechanical integration |
+| --- | --- | --- |
+| <img src="images/257.png" alt="STM32MP257 controller" width="300"><br>STM32MP257 mission-control board. | <img src="images/NX.png" alt="Jetson Xavier NX" width="300"><br>Jetson Xavier NX perception and arm computer. | <img src="images/机械臂.png" alt="Delta arm" width="300"><br>Delta-arm integration. |
+| <img src="images/飞控cuav5.png" alt="CUAV V5 flight controller" width="300"><br>CUAV V5 flight controller. | <img src="images/yolo.png" alt="Wrench YOLO detection" width="300"><br>Wrench YOLO perception output. | <img src="images/双目相机架.png" alt="Stereo camera mount" width="300"><br>Stereo camera mounting hardware. |
+
 Current Jetson field mainline:
 `Delta_Gcode_Servo/real_machine_test/jetson_py36/run_sampler_py36_jetson.sh`.
 It runs on the Jetson Xavier NX at `192.168.1.174` and combines 3K fisheye
