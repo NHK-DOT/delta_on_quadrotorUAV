@@ -96,7 +96,18 @@ sends only validated target/arm observations to the MP257. It never sends FCU,
 arming, mode, velocity, waypoint, or landing commands. See
 [`MP257_INTERFACE.md`](Uav_Delta_capture/nx_arm_bridge/MP257_INTERFACE.md) for
 the protocol and [`docs/README.md`](Uav_Delta_capture/docs/README.md) for the
-generated integration report.
+integration documentation.
+
+### Verified NX–MP257 Wired ROS 2 Link
+
+The dedicated NX–MP257 Ethernet subnet is `10.42.0.0/24`: NX `eth0` is
+`10.42.0.1`, while STM32MP257 `end0` is persistently configured as
+`10.42.0.2`. The board's USB Ethernet adapter remains its external-router and
+Internet path. On July 14, 2026, ROS 2 Humble/Fast DDS messages were verified
+in both directions over this dedicated cable with the board's external USB
+Ethernet interface temporarily disabled. Full operational details are in the
+[English runbook](docs/NX_257_WIRED_LAN_AND_ROS2.md) and
+[Chinese runbook](docs/NX_257_WIRED_LAN_AND_ROS2.zh-CN.md).
 
 NX uses an isolated Python 3.8 environment at
 `/home/nvidia/.venvs/78arm-py38`; the legacy Python 3.6 Jetson control path is
