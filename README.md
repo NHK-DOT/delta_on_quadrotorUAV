@@ -56,6 +56,13 @@ sensor stack.
 | <img src="images/autostepper_beta_outlook.jpg" alt="Full UAV integration view" width="360"><br>Current full-platform integration view. | <img src="images/45angle_base_on_drone.jpg" alt="UAV-mounted arm at a 45 degree angle" width="360"><br>Arm mounted at a 45 degree angle on the drone platform. | <img src="images/PDBboard_and_wire.jpg" alt="Power distribution board and wiring harness" width="360"><br>Power distribution board and wiring harness during integration. |
 | <img src="images/autostepper_beta.jpg" alt="Main control stack on the platform" width="360"><br>Main control stack, sensor wiring, and mounting frame. | <img src="images/uwb%20beacon.jpg" alt="UWB beacon module" width="360"><br>UWB beacon module and wiring. |  |
 
+## Second Airframe Photos
+
+| Airframe overview | Assembly progress | Arm and propeller overview |
+| --- | --- | --- |
+| <img src="images/贰号机一览.jpg" alt="Second airframe overview" width="230"><br>Second UAV airframe overview. | <img src="images/贰号机装配中.jpg" alt="Second airframe assembly" width="230"><br>Second airframe during assembly. | <img src="images/贰号机机臂桨叶一览1053.jpg" alt="Second airframe arm and propeller overview" width="230"><br>Arm and propeller overview. |
+| <img src="images/贰号机装配中2.jpg" alt="Second airframe assembly detail" width="230"><br>Second airframe assembly detail. | <img src="images/非机械臂夹取贰号机.jpg" alt="Second airframe handling" width="230"><br>Second airframe handling view. |  |
+
 ## System Components
 
 | Flight and compute | Vision and arm | Mechanical integration |
