@@ -1,0 +1,27 @@
+{
+  "format": "raw_semantic_workspace_v1",
+  "labels": {
+    "back_mid": [277, 64, 189],
+    "bottom_safe": [113, 148, 148],
+    "center_mid": [324, 343, 366],
+    "front_mid": [59, 357, 111],
+    "left_mid": [148, 195, 400],
+    "right_mid": [333, 351, 147],
+    "top_home": [432, 413, 454]
+  },
+  "raw_bounds": {
+    "1": [59, 432],
+    "3": [64, 413],
+    "4": [111, 454]
+  },
+  "sample_counts": {
+    "back_mid": 3,
+    "bottom_safe": 3,
+    "center_mid": 3,
+    "front_mid": 3,
+    "left_mid": 3,
+    "right_mid": 3,
+    "top_home": 3
+  },
+  "servo_ids": [1, 3, 4]
+}
