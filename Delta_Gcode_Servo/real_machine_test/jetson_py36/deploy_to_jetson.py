@@ -201,7 +201,8 @@ def deploy(args):
             "chmod +x run_sampler_py36_jetson.sh *.py && "
             "python3 -m py_compile jetson_workspace_common.py "
             "jetson_workspace_preflight.py jetson_apriltag_workspace_sampler_py36.py "
-            "jetson_wrench_image_follower_py36.py jetson_wrench_grasp_demo_py36.py"
+            "jetson_wrench_image_follower_py36.py jetson_wrench_grasp_demo_py36.py "
+            "jetson_gamepad_raw_jog_py36.py"
         ).format(root=args.remote_root)
         rc, out, err = exec_checked(client, cmd)
         if out:
@@ -219,7 +220,7 @@ def deploy(args):
 
 def parse_args(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--host", default="192.168.1.80")
+    parser.add_argument("--host", default="192.168.1.174")
     parser.add_argument("--user", default="nvidia")
     parser.add_argument("--password", default="")
     parser.add_argument("--remote-root", default="/home/nvidia/Desktop/78arm")

@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import csv
+import argparse
 import json
 import sys
 import time
@@ -311,7 +312,14 @@ class GamepadReader:
 class RealTimeArmController:
     """实机测试控制器。"""
 
-    def __init__(self, port: str = "COM9", baudrate: int = 9600):
+    def __init__(
+        self,
+        port: str = "COM9",
+        baudrate: int = 9600,
+        *,
+        start_from_current: bool = False,
+        slow_start: bool = False,
+    ):
         self.project_root = Path(__file__).resolve().parents[2]
         self.debug_log_path = Path(__file__).with_name("gamepad_diagnostic.log")
         self.debug_log_file = self.debug_log_path.open("w", encoding="utf-8")
@@ -330,11 +338,13 @@ class RealTimeArmController:
         self.robot = DeltaRobot()
         self.params = robot_params()
         self.port = port
-        self.servo_ids = [1, 2, 3]
+        self.start_from_current = start_from_current
+        self.slow_start = slow_start
+        self.servo_ids = [1, 3, 4]
         self.physical_angle_min_deg = float(self.params.servo_physical_angle_min_deg)
         self.physical_angle_max_deg = float(self.params.servo_physical_angle_max_deg)
         self.servo_mappings = load_servo_mappings_for_ids(self.servo_ids)
-        self.servo_raw_directions = {1: -1, 2: -1, 3: -1}
+        self.servo_raw_directions = {1: -1, 3: -1, 4: -1}
         self.servo_logical_directions = {
             servo_id: self.servo_raw_directions[servo_id]
             * (1 if self.servo_mappings[servo_id].logical_span >= 0.0 else -1)
@@ -379,12 +389,12 @@ class RealTimeArmController:
         self.target_angles_rad: np.ndarray | None = None
         self.target_position = self.reference_position.copy()
 
-        self.max_servo_speed_ticks_per_sec = 400.0
-        self.min_effective_move_ticks = 4
-        self.min_command_time_ms = 20
+        self.max_servo_speed_ticks_per_sec = 300.0
+        self.min_effective_move_ticks = 1
+        self.min_command_time_ms = 12
         self.position_tolerance_ticks = 0
-        self.speed_xy = 100.0
-        self.speed_z = 80.0
+        self.speed_xy = 200.0
+        self.speed_z = 320.0
         self.update_rate = 50
         self.update_interval = 1.0 / self.update_rate
         self.axis_filter_alpha = 1.0
@@ -397,7 +407,7 @@ class RealTimeArmController:
         self.xy_rotation_rad = 0.0
         self.enforce_workspace_bounds = True
         self.enable_stall_guard = True
-        self.max_target_lead_mm = 18.0
+        self.max_target_lead_mm = 36.0
         self.target_reanchor_error_mm = 45.0
         self.playback_step_mm = 2.0
         self.playback_speed_mm_per_sec = 70.0
@@ -455,6 +465,8 @@ class RealTimeArmController:
         self.tooling_config = load_tooling_servo_config(
             self.project_root / "lx225_tool_demo" / "config" / "lx225_tool.demo.toml"
         )
+        if self.tooling_config is not None and self.tooling_config.servo_id in self.servo_ids:
+            self.tooling_config = None
         self.tooling_speed_ticks_per_sec = 120.0
         self.tooling_current_position: int | None = None
         self.tooling_target_position: int | None = None
@@ -534,7 +546,8 @@ class RealTimeArmController:
         before = candidate.copy()
         candidate[0] = np.clip(candidate[0], bounds["x_min"], bounds["x_max"])
         candidate[1] = np.clip(candidate[1], bounds["y_min"], bounds["y_max"])
-        candidate[2] = np.clip(candidate[2], bounds["z_min"], bounds["z_max"])
+        # Test mode: keep IK/FK in the loop, but do not soft-clip Z before IK.
+        # The IK/raw conversion still rejects geometrically impossible or raw-out-of-range targets.
         xy_radius = float(np.linalg.norm(candidate[:2]))
         xy_limit = float(self.params.workspace_xy_max)
         if xy_radius > xy_limit and xy_radius > 1e-9:
@@ -1842,8 +1855,18 @@ class RealTimeArmController:
 
 def main() -> None:
     try:
-        port = input("输入串口 (默认 COM9): ").strip() or "COM9"
-        controller = RealTimeArmController(port=port)
+        parser = argparse.ArgumentParser(description="Xbox gamepad realtime Delta-arm controller.")
+        parser.add_argument("--port", default=None, help="Serial port, for example COM19.")
+        parser.add_argument("--start-from-current", action="store_true", help="Use current servo feedback as startup pose.")
+        parser.add_argument("--slow-start", action="store_true", help="Keep startup compatibility flag; movement speed remains configured in the controller.")
+        args = parser.parse_args()
+
+        port = args.port or input("输入串口 (默认 COM9): ").strip() or "COM9"
+        controller = RealTimeArmController(
+            port=port,
+            start_from_current=args.start_from_current,
+            slow_start=args.slow_start,
+        )
         controller.run_controller()
     except Exception as exc:
         print(f"程序出错: {exc}")

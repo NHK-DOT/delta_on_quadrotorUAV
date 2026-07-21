@@ -103,7 +103,7 @@ Do not run this script with the arm powered if the mechanical linkage is blocked
 | B | Sample current feedback point |
 | X | Cycle safe-scan axis mode |
 | Y | Cycle sensor-frame mode |
-| LB/RB | Move tooling servo if servo 4 is configured |
+| LB/RB | Move landing gear servos 4/5/6 to DOWN/UP raw endpoints |
 | BACK | Toggle A/B playback mode |
 | START | Confirmed playback using the latest two sampled points |
 
@@ -188,11 +188,15 @@ Current main arm mappings:
 
 | Servo | raw min | raw max | step |
 | --- | ---: | ---: | ---: |
-| 1 | `0` | `834` | `4` |
-| 2 | `0` | `770` | `4` |
-| 3 | `0` | `816` | `4` |
+| 1 | `0` | `1000` | `4` |
+| 2 | `0` | `1000` | `4` |
+| 3 | `0` | `1000` | `4` |
 
-Servo 4 is treated as optional tooling and uses its own mapping in the same TOML file.
+Current bus role split:
+
+- Servos `1/2/3` are the real delta-arm actuators used by IK/FK and feedback control.
+- Servos `4/5/6` are reserved for the simple retractable landing gear.
+- Landing gear defaults live in `[landing_gear]`: `down_raw = 500`, `up_raw = 1000`, `move_time_ms = 180`.
 
 ## Should the arm dimensions be measured?
 

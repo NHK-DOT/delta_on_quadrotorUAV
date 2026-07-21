@@ -1,0 +1,374 @@
+{
+  "run_id": "20260708_135833",
+  "source_csv": "C:\\Users\\hanjuncheng\\Desktop\\78arm\\Delta_Gcode_Servo\\real_machine_test\\calibration_snapshots\\20260708_135833_labeled_workspace_raw.csv",
+  "preferred_labels": [
+    "top_home",
+    "bottom_safe",
+    "center_mid",
+    "left_mid",
+    "right_mid",
+    "front_mid",
+    "back_mid_redo"
+  ],
+  "labels": {
+    "top_home": {
+      "samples": 5,
+      "median_raw": {
+        "raw1": 459,
+        "raw2": 48,
+        "raw3": 1021
+      },
+      "min_raw": {
+        "raw1": 458,
+        "raw2": 48,
+        "raw3": 1021
+      },
+      "max_raw": {
+        "raw1": 459,
+        "raw2": 48,
+        "raw3": 1021
+      },
+      "spread_ticks": {
+        "raw1": 1,
+        "raw2": 0,
+        "raw3": 0
+      },
+      "all_samples": {
+        "raw1": [
+          459,
+          458,
+          458,
+          459,
+          459
+        ],
+        "raw2": [
+          48,
+          48,
+          48,
+          48,
+          48
+        ],
+        "raw3": [
+          1021,
+          1021,
+          1021,
+          1021,
+          1021
+        ]
+      }
+    },
+    "bottom_safe": {
+      "samples": 5,
+      "median_raw": {
+        "raw1": -14,
+        "raw2": 1120,
+        "raw3": 622
+      },
+      "min_raw": {
+        "raw1": -14,
+        "raw2": 1120,
+        "raw3": 622
+      },
+      "max_raw": {
+        "raw1": -14,
+        "raw2": 1121,
+        "raw3": 656
+      },
+      "spread_ticks": {
+        "raw1": 0,
+        "raw2": 1,
+        "raw3": 34
+      },
+      "all_samples": {
+        "raw1": [
+          -14,
+          -14,
+          -14,
+          -14,
+          -14
+        ],
+        "raw2": [
+          1121,
+          1121,
+          1120,
+          1120,
+          1120
+        ],
+        "raw3": [
+          656,
+          623,
+          622,
+          622,
+          622
+        ]
+      }
+    },
+    "center_mid": {
+      "samples": 5,
+      "median_raw": {
+        "raw1": 370,
+        "raw2": -46,
+        "raw3": 976
+      },
+      "min_raw": {
+        "raw1": 370,
+        "raw2": -46,
+        "raw3": 976
+      },
+      "max_raw": {
+        "raw1": 371,
+        "raw2": -45,
+        "raw3": 976
+      },
+      "spread_ticks": {
+        "raw1": 1,
+        "raw2": 1,
+        "raw3": 0
+      },
+      "all_samples": {
+        "raw1": [
+          370,
+          370,
+          370,
+          371,
+          370
+        ],
+        "raw2": [
+          -45,
+          -46,
+          -45,
+          -46,
+          -46
+        ],
+        "raw3": [
+          976,
+          976,
+          976,
+          976,
+          976
+        ]
+      }
+    },
+    "left_mid": {
+      "samples": 5,
+      "median_raw": {
+        "raw1": 306,
+        "raw2": 1116,
+        "raw3": 803
+      },
+      "min_raw": {
+        "raw1": 306,
+        "raw2": 1115,
+        "raw3": 801
+      },
+      "max_raw": {
+        "raw1": 306,
+        "raw2": 1116,
+        "raw3": 804
+      },
+      "spread_ticks": {
+        "raw1": 0,
+        "raw2": 1,
+        "raw3": 3
+      },
+      "all_samples": {
+        "raw1": [
+          306,
+          306,
+          306,
+          306,
+          306
+        ],
+        "raw2": [
+          1116,
+          1116,
+          1116,
+          1115,
+          1115
+        ],
+        "raw3": [
+          804,
+          803,
+          803,
+          801,
+          801
+        ]
+      }
+    },
+    "right_mid": {
+      "samples": 5,
+      "median_raw": {
+        "raw1": 33,
+        "raw2": -97,
+        "raw3": 672
+      },
+      "min_raw": {
+        "raw1": 33,
+        "raw2": -97,
+        "raw3": 672
+      },
+      "max_raw": {
+        "raw1": 33,
+        "raw2": -96,
+        "raw3": 672
+      },
+      "spread_ticks": {
+        "raw1": 0,
+        "raw2": 1,
+        "raw3": 0
+      },
+      "all_samples": {
+        "raw1": [
+          33,
+          33,
+          33,
+          33,
+          33
+        ],
+        "raw2": [
+          -97,
+          -97,
+          -97,
+          -97,
+          -96
+        ],
+        "raw3": [
+          672,
+          672,
+          672,
+          672,
+          672
+        ]
+      }
+    },
+    "front_mid": {
+      "samples": 5,
+      "median_raw": {
+        "raw1": 80,
+        "raw2": 1165,
+        "raw3": 953
+      },
+      "min_raw": {
+        "raw1": 80,
+        "raw2": 1165,
+        "raw3": 953
+      },
+      "max_raw": {
+        "raw1": 80,
+        "raw2": 1166,
+        "raw3": 954
+      },
+      "spread_ticks": {
+        "raw1": 0,
+        "raw2": 1,
+        "raw3": 1
+      },
+      "all_samples": {
+        "raw1": [
+          80,
+          80,
+          80,
+          80,
+          80
+        ],
+        "raw2": [
+          1165,
+          1165,
+          1166,
+          1165,
+          1165
+        ],
+        "raw3": [
+          953,
+          954,
+          953,
+          953,
+          954
+        ]
+      }
+    },
+    "back_mid_redo": {
+      "samples": 7,
+      "median_raw": {
+        "raw1": 235,
+        "raw2": -193,
+        "raw3": 652
+      },
+      "min_raw": {
+        "raw1": 235,
+        "raw2": -193,
+        "raw3": 652
+      },
+      "max_raw": {
+        "raw1": 235,
+        "raw2": -193,
+        "raw3": 652
+      },
+      "spread_ticks": {
+        "raw1": 0,
+        "raw2": 0,
+        "raw3": 0
+      },
+      "all_samples": {
+        "raw1": [
+          235,
+          235,
+          235,
+          235,
+          235,
+          235,
+          235
+        ],
+        "raw2": [
+          -193,
+          -193,
+          -193,
+          -193,
+          -193,
+          -193,
+          -193
+        ],
+        "raw3": [
+          652,
+          652,
+          652,
+          652,
+          652,
+          652,
+          652
+        ]
+      }
+    }
+  },
+  "raw_envelope_from_preferred_medians": {
+    "raw1": {
+      "min": -14,
+      "max": 459,
+      "span": 473,
+      "suggested_margin_ticks": 20,
+      "with_margin_min": -34,
+      "with_margin_max": 479
+    },
+    "raw2": {
+      "min": -193,
+      "max": 1165,
+      "span": 1358,
+      "suggested_margin_ticks": 20,
+      "with_margin_min": -213,
+      "with_margin_max": 1185
+    },
+    "raw3": {
+      "min": 622,
+      "max": 1021,
+      "span": 399,
+      "suggested_margin_ticks": 20,
+      "with_margin_min": 602,
+      "with_margin_max": 1041
+    }
+  },
+  "notes": [
+    "bottom_safe has a large within-label spread: {'raw1': 0, 'raw2': 1, 'raw3': 34}",
+    "Use back_mid_redo as the valid back_mid point; earlier back_mid/back_mid_retry are retained only as raw logs.",
+    "This summary is raw-only. Workspace fitting still needs corresponding end-effector XYZ from AprilTag or manual measurement."
+  ]
+}

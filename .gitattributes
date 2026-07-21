@@ -6,12 +6,20 @@ Jetson_Vision_Export/yolo_fisheye_calibration_jetson.tar.gz filter=lfs diff=lfs 
 *.3mf filter=lfs diff=lfs merge=lfs -text
 *.sldprt filter=lfs diff=lfs merge=lfs -text
 *.sldasm filter=lfs diff=lfs merge=lfs -text
-*.stl filter=lfs diff=lfs merge=lfs -text
-*.step filter=lfs diff=lfs merge=lfs -text
-*.stp filter=lfs diff=lfs merge=lfs -text
-*.3mf filter=lfs diff=lfs merge=lfs -text
-*.sldprt filter=lfs diff=lfs merge=lfs -text
-*.sldasm filter=lfs diff=lfs merge=lfs -text
+
+# These small legacy CAD blobs predate LFS in this repository. Keep their
+# historical representation intact; all newly added CAD files use LFS above.
+part_model_rev/999.STL -filter -diff -merge -text
+part_model_rev/666.SLDPRT -filter -diff -merge -text
+part_model_rev/6666.3mf -filter -diff -merge -text
+part_model_rev/圆角13.SLDPRT -filter -diff -merge -text
+part_model_rev/肱二头肌.SLDPRT -filter -diff -merge -text
+part_model_rev/零件2.SLDPRT -filter -diff -merge -text
+
+# Preserve vendor example source verbatim; do not apply repository whitespace
+# policy to files not maintained by this project.
+最新ALX-AOA-FIT跟随套件开发资料/** -whitespace
+
 Jetson_AprilTag3K/**/*.sh text eol=lf
 Jetson_AprilTag3K/**/*.py text eol=lf
 Jetson_Vision_Export/yolo_fisheye_calibration_jetson/*.sh text eol=lf

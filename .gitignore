@@ -18,11 +18,23 @@ env/
 **/build/
 **/dist/
 **/*.egg-info/
+**/Objects/
+**/Outputs/
 **/.pytest_cache/
 **/.mypy_cache/
 **/.ruff_cache/
 .coverage
 htmlcov/
+*.o
+*.d
+*.crf
+*.lst
+*.map
+*.uvguix.*
+*.uvoptx
+*.dbgconf
+**/JLinkLog.txt
+**/JLinkSettings.ini
 
 # Runtime outputs, logs, and captures
 **/output/
@@ -32,6 +44,8 @@ htmlcov/
 /yolov8n.pt
 /Dual_Camera_HandEye/yolo_training/runtime_checks/
 /Dual_Camera_HandEye/yolo_training/datasets/wrench_combined_autolabel_20260626_flight_aug/
+/Jetson_Vision_Export/saved_runs/
+/Uav_Delta_capture/.codex
 
 # Camera calibration results
 /AprilTag_Vision/myAprilTag/calibration/
@@ -44,6 +58,16 @@ htmlcov/
 # Temporary local files
 *.tmp
 *.bak
+~$*.SLDASM
+~$*.SLDPRT
+
+# LaTeX build intermediates (keep source, figures, and intentional PDFs)
+*.aux
+*.synctex.gz
+*.toc
+
+# Local recovery snapshots are retained on the workstation, not published.
+/78arm_recovery_backup_*/
 
 # OS/editor local files
 .DS_Store

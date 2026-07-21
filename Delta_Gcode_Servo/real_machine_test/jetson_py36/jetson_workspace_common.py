@@ -7,6 +7,7 @@ from __future__ import print_function
 import json
 import math
 import os
+import subprocess
 import sys
 import time
 from datetime import datetime
@@ -22,6 +23,10 @@ if BT_8BITDO_SRC not in sys.path:
 
 DEFAULT_APRILTAG_JSON = "/home/nvidia/Desktop/yolo_fisheye_calibration_jetson/output/apriltag_latest_jetson.json"
 DEFAULT_APRILTAG_LAUNCH = "/home/nvidia/Desktop/yolo_fisheye_calibration_jetson/nv_gpu_apriltags_bench/run_fullfov_1280x960_gui.sh"
+DEFAULT_APRILTAG_INTRINSICS = (
+    "/home/nvidia/Desktop/yolo_fisheye_calibration_jetson/calibration/"
+    "usable_3k_downsample_1280x960/apriltag_fullfov_1280x960_intrinsics.json"
+)
 DEFAULT_SERVO_CONFIG = os.path.join(PROJECT_ROOT, "lx225_tool_demo", "config", "lx225_tool.demo.toml")
 DEFAULT_GAMEPAD_CONFIG = os.path.join(PROJECT_ROOT, "bt_8bitdo_min", "config", "gamepad_8bitdo_bt.json")
 DEFAULT_CALIBRATION = os.path.join(PROJECT_ROOT, "Dual_Camera_HandEye", "output", "calibration_result.json")
@@ -137,8 +142,8 @@ def linear_map(x, in_min, in_max, out_min, out_max):
 class ServoMapper(object):
     def __init__(self, config_path):
         self.mappings = load_servo_mapping_config(config_path)
-        self.servo_ids = [1, 2, 3]
-        self.raw_directions = {1: -1, 2: -1, 3: -1}
+        self.servo_ids = [1, 3, 4]
+        self.raw_directions = {1: -1, 3: -1, 4: -1}
         self.physical_min_deg = 0.0
         self.physical_max_deg = 240.0
         self.reference_angles = inverse_kinematics(0.0, 0.0, 240.0)[0]
@@ -417,6 +422,335 @@ def load_tool_pose_from_apriltag(snapshot_path, calibration_path, hand_tag_id):
     }
 
 
+def stop_running_gpu_apriltag_bench():
+    script = (
+        "PIDS=$(pgrep -f '^./nv_gpu_apriltag_bench( |$)' || true); "
+        "if [[ -n \"$PIDS\" ]]; then "
+        "  kill $PIDS >/dev/null 2>&1 || true; "
+        "  sleep 2; "
+        "  for pid in $PIDS; do "
+        "    if kill -0 \"$pid\" >/dev/null 2>&1; then "
+        "      kill -KILL \"$pid\" >/dev/null 2>&1 || true; "
+        "    fi; "
+        "  done; "
+        "fi"
+    )
+    return subprocess.call(["bash", "-lc", script])
+
+
+def capture_fullfov_frame_bgr(
+    sensor_id=0,
+    sensor_mode=0,
+    sensor_width=3264,
+    sensor_height=2464,
+    sensor_fps=21,
+    output_width=1600,
+    output_height=1208,
+    interpolation_method=3,
+    flip_method=0,
+    warmup_frames=35,
+):
+    import cv2
+
+    conv = "nvvidconv"
+    conv_props = []
+    if interpolation_method is not None:
+        conv_props.append("interpolation-method=%d" % int(interpolation_method))
+    conv_props.append("flip-method=%d" % int(flip_method))
+    conv_stage = conv + " " + " ".join(conv_props)
+    pipeline = (
+        "nvarguscamerasrc sensor-id=%d sensor-mode=%d ! "
+        "video/x-raw(memory:NVMM),width=%d,height=%d,framerate=%d/1 ! "
+        "%s ! "
+        "video/x-raw,width=%d,height=%d,format=BGRx ! "
+        "videoconvert ! video/x-raw,format=BGR ! "
+        "appsink drop=true max-buffers=1 sync=false"
+    ) % (
+        int(sensor_id),
+        int(sensor_mode),
+        int(sensor_width),
+        int(sensor_height),
+        int(sensor_fps),
+        conv_stage,
+        int(output_width),
+        int(output_height),
+    )
+    cap = cv2.VideoCapture(pipeline, cv2.CAP_GSTREAMER)
+    if not cap.isOpened():
+        raise RuntimeError("failed to open CSI pipeline: %s" % pipeline)
+    frame = None
+    try:
+        for _index in range(max(1, int(warmup_frames))):
+            ok, image = cap.read()
+            if ok and image is not None:
+                frame = image
+    finally:
+        cap.release()
+    if frame is None:
+        raise RuntimeError("no frame read from CSI pipeline")
+    return frame, pipeline
+
+
+def _opencv_apriltag_dictionary():
+    import cv2
+
+    tag36h11 = getattr(cv2.aruco, "DICT_APRILTAG_36h11", getattr(cv2.aruco, "DICT_APRILTAG_36H11", None))
+    if tag36h11 is None:
+        raise RuntimeError("OpenCV AprilTag 36h11 dictionary is unavailable")
+    if hasattr(cv2.aruco, "getPredefinedDictionary"):
+        return cv2.aruco.getPredefinedDictionary(tag36h11)
+    return cv2.aruco.Dictionary_get(tag36h11)
+
+
+def _opencv_apriltag_detector(dictionary):
+    import cv2
+
+    if hasattr(cv2.aruco, "DetectorParameters"):
+        params = cv2.aruco.DetectorParameters()
+    else:
+        params = cv2.aruco.DetectorParameters_create()
+    if hasattr(params, "cornerRefinementMethod"):
+        params.cornerRefinementMethod = getattr(cv2.aruco, "CORNER_REFINE_SUBPIX", 1)
+    if hasattr(cv2.aruco, "ArucoDetector"):
+        return params, cv2.aruco.ArucoDetector(dictionary, params)
+    return params, None
+
+
+def _opencv_detect_markers(image, dictionary, params, detector):
+    import cv2
+
+    if detector is not None:
+        return detector.detectMarkers(image)
+    return cv2.aruco.detectMarkers(image, dictionary, parameters=params)
+
+
+def detect_live_apriltag_opencv(frame_bgr, hand_tag_id):
+    import cv2
+
+    frame_h, frame_w = frame_bgr.shape[:2]
+    dictionary = _opencv_apriltag_dictionary()
+    params, detector = _opencv_apriltag_detector(dictionary)
+    center_positions = [
+        (0.50, 0.50),
+        (0.45, 0.50),
+        (0.55, 0.50),
+        (0.50, 0.45),
+        (0.50, 0.55),
+        (0.45, 0.45),
+        (0.55, 0.45),
+        (0.45, 0.55),
+        (0.55, 0.55),
+    ]
+    roi_fractions = [
+        (1.00, 1.00),
+        (0.90, 0.90),
+        (0.80, 0.80),
+        (0.75, 0.75),
+        (0.70, 0.70),
+        (0.65, 0.65),
+        (0.60, 0.60),
+    ]
+    best = None
+    for frac_w, frac_h in roi_fractions:
+        crop_w = max(32, int(round(frame_w * frac_w)))
+        crop_h = max(32, int(round(frame_h * frac_h)))
+        for center_x, center_y in center_positions:
+            left = int(round(frame_w * center_x - crop_w / 2.0))
+            top = int(round(frame_h * center_y - crop_h / 2.0))
+            left = max(0, min(frame_w - crop_w, left))
+            top = max(0, min(frame_h - crop_h, top))
+            roi = frame_bgr[top : top + crop_h, left : left + crop_w]
+            gray = cv2.cvtColor(roi, cv2.COLOR_BGR2GRAY)
+            variants = [
+                ("gray", gray),
+                ("equalize", cv2.equalizeHist(gray)),
+                ("gauss_equalize", cv2.equalizeHist(cv2.GaussianBlur(gray, (3, 3), 0))),
+                ("otsu", cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)[1]),
+            ]
+            for variant_name, variant in variants:
+                corners, ids, _rejected = _opencv_detect_markers(variant, dictionary, params, detector)
+                if ids is None or len(ids) == 0:
+                    continue
+                ids_flat = [int(value) for value in ids.reshape(-1).tolist()]
+                for index, detection_id in enumerate(ids_flat):
+                    if hand_tag_id is not None and int(detection_id) != int(hand_tag_id):
+                        continue
+                    pts = corners[index].reshape(4, 2).astype(float)
+                    pts[:, 0] += float(left)
+                    pts[:, 1] += float(top)
+                    side = 0.0
+                    for edge_index in range(4):
+                        p0 = pts[edge_index]
+                        p1 = pts[(edge_index + 1) % 4]
+                        side += math.hypot(float(p1[0] - p0[0]), float(p1[1] - p0[1]))
+                    side /= 4.0
+                    area = abs(cv2.contourArea(pts.astype("float32")))
+                    score = side + (area / 1000.0)
+                    if best is None or score > best["score"]:
+                        center = pts.mean(axis=0)
+                        best = {
+                            "id": int(detection_id),
+                            "corners_px": [
+                                {"x": float(point[0]), "y": float(point[1])}
+                                for point in pts
+                            ],
+                            "center_px": {"x": float(center[0]), "y": float(center[1])},
+                            "normalized_xy": {
+                                "x": float((center[0] - frame_w / 2.0) / max(1.0, frame_w / 2.0)),
+                                "y": float((center[1] - frame_h / 2.0) / max(1.0, frame_h / 2.0)),
+                            },
+                            "roi": {
+                                "x": int(left),
+                                "y": int(top),
+                                "width": int(crop_w),
+                                "height": int(crop_h),
+                            },
+                            "variant": variant_name,
+                            "avg_side_px": float(side),
+                            "score": float(score),
+                        }
+    if best is None:
+        raise ValueError("live CPU detection failed for tag id %s" % hand_tag_id)
+    return best
+
+
+def capture_tool_pose_from_live_opencv(
+    calibration_path,
+    intrinsics_path,
+    hand_tag_id,
+    stop_gpu_detector=True,
+    sensor_id=0,
+    sensor_mode=0,
+    sensor_width=3264,
+    sensor_height=2464,
+    sensor_fps=21,
+    output_width=1600,
+    output_height=1208,
+    interpolation_method=3,
+    flip_method=0,
+    warmup_frames=35,
+    tag_size_m=0.0305,
+    debug_image_path="",
+    debug_overlay_path="",
+):
+    import cv2
+    import numpy as np
+
+    if stop_gpu_detector:
+        stop_running_gpu_apriltag_bench()
+    frame, pipeline = capture_fullfov_frame_bgr(
+        sensor_id=sensor_id,
+        sensor_mode=sensor_mode,
+        sensor_width=sensor_width,
+        sensor_height=sensor_height,
+        sensor_fps=sensor_fps,
+        output_width=output_width,
+        output_height=output_height,
+        interpolation_method=interpolation_method,
+        flip_method=flip_method,
+        warmup_frames=warmup_frames,
+    )
+    detection = detect_live_apriltag_opencv(frame, hand_tag_id)
+    intrinsics = read_json(intrinsics_path)
+    camera_matrix = np.array(intrinsics["camera_matrix"], dtype=np.float64)
+    calib_size = intrinsics.get("image_size", {})
+    calib_w = int(calib_size.get("width", frame.shape[1]))
+    calib_h = int(calib_size.get("height", frame.shape[0]))
+    scale_x = float(calib_w) / float(frame.shape[1])
+    scale_y = float(calib_h) / float(frame.shape[0])
+    image_points = []
+    for point in detection["corners_px"]:
+        image_points.append([float(point["x"]) * scale_x, float(point["y"]) * scale_y])
+    image_points = np.array(image_points, dtype=np.float64)
+    half = float(tag_size_m) / 2.0
+    object_points = np.array(
+        [
+            [-half, half, 0.0],
+            [half, half, 0.0],
+            [half, -half, 0.0],
+            [-half, -half, 0.0],
+        ],
+        dtype=np.float64,
+    )
+    solve_flag = getattr(cv2, "SOLVEPNP_IPPE_SQUARE", getattr(cv2, "SOLVEPNP_ITERATIVE", 0))
+    ok, rvec, tvec = cv2.solvePnP(object_points, image_points, camera_matrix, None, flags=solve_flag)
+    if not ok:
+        ok, rvec, tvec = cv2.solvePnP(object_points, image_points, camera_matrix, None)
+    if not ok:
+        raise RuntimeError("solvePnP failed for live CPU AprilTag pose")
+    rotation, _jacobian = cv2.Rodrigues(rvec)
+    orientation_column_major = [
+        float(rotation[0][0]),
+        float(rotation[1][0]),
+        float(rotation[2][0]),
+        float(rotation[0][1]),
+        float(rotation[1][1]),
+        float(rotation[2][1]),
+        float(rotation[0][2]),
+        float(rotation[1][2]),
+        float(rotation[2][2]),
+    ]
+    detection["position_m"] = {
+        "x": float(tvec[0][0]),
+        "y": float(tvec[1][0]),
+        "z": float(tvec[2][0]),
+    }
+    detection["orientation_matrix_column_major"] = orientation_column_major
+    detection["source_timestamp_unix"] = time.time()
+    detection["capture_variant"] = detection.pop("variant")
+    detection["capture_roi"] = detection.pop("roi")
+    if debug_image_path:
+        parent = os.path.dirname(os.path.abspath(debug_image_path))
+        if parent and not os.path.isdir(parent):
+            os.makedirs(parent)
+        cv2.imwrite(debug_image_path, frame, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+    if debug_overlay_path:
+        parent = os.path.dirname(os.path.abspath(debug_overlay_path))
+        if parent and not os.path.isdir(parent):
+            os.makedirs(parent)
+        overlay = frame.copy()
+        pts = []
+        for point in detection["corners_px"]:
+            pts.append([int(round(float(point["x"]))), int(round(float(point["y"])))])
+        cv2.polylines(overlay, [np.array(pts, dtype=np.int32).reshape((-1, 1, 2))], True, (0, 255, 0), 3)
+        cv2.putText(
+            overlay,
+            "id=%s live_cpu" % detection["id"],
+            (30, 48),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            1.0,
+            (0, 255, 0),
+            2,
+            cv2.LINE_AA,
+        )
+        cv2.imwrite(debug_overlay_path, overlay, [int(cv2.IMWRITE_JPEG_QUALITY), 95])
+    calibration = read_json(calibration_path)
+    base_camera_tf = transform_from_json(calibration["results"]["base_camera"]["transform"])
+    tool_hand_tag = transform_from_json(calibration["known_transforms"]["tool_T_hand_tag"])
+    base_camera_hand_tag = transform_from_translation_rotation(
+        [float(tvec[0][0]), float(tvec[1][0]), float(tvec[2][0])],
+        [
+            [float(rotation[0][0]), float(rotation[0][1]), float(rotation[0][2])],
+            [float(rotation[1][0]), float(rotation[1][1]), float(rotation[1][2])],
+            [float(rotation[2][0]), float(rotation[2][1]), float(rotation[2][2])],
+        ],
+    )
+    base_tool = transform_mul(transform_mul(base_camera_tf, base_camera_hand_tag), transform_inv(tool_hand_tag))
+    xyz_m = transform_translation(base_tool)
+    return {
+        "detection_id": detection["id"],
+        "snapshot_age_ms": 0.0,
+        "tool_position_mm": [xyz_m[0] * 1000.0, xyz_m[1] * 1000.0, xyz_m[2] * 1000.0],
+        "raw_detection": detection,
+        "vision_mode": "live_cpu_fullfov_capture",
+        "capture_frame": {"width": int(frame.shape[1]), "height": int(frame.shape[0])},
+        "capture_pipeline": pipeline,
+        "intrinsics_source": intrinsics_path,
+        "debug_image_path": debug_image_path,
+        "debug_overlay_path": debug_overlay_path,
+    }
+
+
 class RobotParams(object):
     def __init__(self):
         self.l1 = 100.0
@@ -426,11 +760,11 @@ class RobotParams(object):
         self.servo_offset_z = 41.231
         self.servo_angle_min = math.radians(45.0)
         self.servo_angle_max = math.radians(225.0)
-        self.workspace_z_min = 110.0
+        self.workspace_z_min = 90.0
         self.workspace_z_max = 280.0
         self.workspace_xy_max = 150.0
         self.ball_joint_angle_limit = math.radians(34.1)
-        self.servo_distribution = [0.0, 2.0 * math.pi / 3.0, 4.0 * math.pi / 3.0]
+        self.servo_distribution = [-math.pi / 2.0, math.pi / 6.0, 5.0 * math.pi / 6.0]
 
 
 def local_to_global(x_local, y_local, z_local, servo_angle):

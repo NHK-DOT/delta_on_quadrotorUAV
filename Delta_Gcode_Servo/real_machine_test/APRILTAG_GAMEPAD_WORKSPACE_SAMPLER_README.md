@@ -38,7 +38,7 @@ Delta_Gcode_Servo/real_machine_test/gamepad_controller.py
 - 当前反馈不在准备位时输入 `HOME` 后慢速回到参考位。
 - FK/IK、raw 舵机映射、工作空间裁剪、target lead 限制。
 - 堵转/反馈不变化保护。
-- `X` safe-scan 轴锁定、`Y` sensor frame、`LB/RB` 工具舵机。
+- `X` safe-scan 轴锁定、`Y` sensor frame、`LB/RB` 起落架 DOWN/UP。
 
 新增的是：按 `B` 不再只写旧 `workspace_points.csv`，而是写完整 AprilTag 工作空间数据集。
 
@@ -61,7 +61,7 @@ bt_8bitdo_min/config/gamepad_8bitdo_bt.json
 | B | 采样当前点 |
 | X | 切换 safe-scan: FREE/X/Y/Z |
 | Y | 切换 sensor frame |
-| LB/RB | 工具舵机，如果 servo4 已配置 |
+| LB/RB | 起落架 DOWN/UP，使用舵机 4/5/6 |
 
 `START` 的 A/B 回放在这个采样脚本里被禁用，避免未验证数据时误触发自动路径。
 

@@ -8,6 +8,20 @@ import subprocess
 from pathlib import Path
 
 
+def safe_gamepad_command(current_dir: Path) -> list[str]:
+    project_root = current_dir.parents[1]
+    venv_python = project_root / ".venv" / "Scripts" / "python.exe"
+    python_exe = str(venv_python if venv_python.exists() else Path(sys.executable))
+    return [
+        python_exe,
+        str(current_dir / "gamepad_controller.py"),
+        "--port",
+        "COM19",
+        "--start-from-current",
+        "--slow-start",
+    ]
+
+
 def main():
     print("\n" + "="*70)
     print("Delta 机械臂 - 实机测试工具包")
@@ -27,8 +41,8 @@ def main():
         subprocess.run([sys.executable, str(current_dir / "servo_calibration.py")])
     elif choice == '2':
         print("\n启动手柄控制工具...")
-        print("⚠️  请确保 pygame 已安装: pip install pygame\n")
-        subprocess.run([sys.executable, str(current_dir / "gamepad_controller.py")])
+        print("Using the project .venv and safe startup flags.\n")
+        subprocess.run(safe_gamepad_command(current_dir))
     elif choice == 'q':
         print("\n退出")
     else:

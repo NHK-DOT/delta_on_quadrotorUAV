@@ -51,7 +51,7 @@ DEFAULT_FRESH_MS = 1000.0
 DEFAULT_FEEDBACK_INTERVAL_SEC = 0.25
 DEFAULT_SERVO_TIMEOUT_SEC = 0.20
 DEFAULT_FEEDBACK_READ_RETRIES = 3
-DEFAULT_Z_MIN_MM = 155.0
+DEFAULT_Z_MIN_MM = 90.0
 DEFAULT_Z_MAX_MM = 280.0
 DEFAULT_MAX_FEEDBACK_LEAD_TICKS = 5
 
@@ -94,6 +94,10 @@ def finite_xyz(values):
             return None
         out.append(number)
     return out
+
+
+def format_servo_raw(raw_values, servo_ids):
+    return " ".join("%d=%s" % (servo_id, raw_values.get(servo_id, "")) for servo_id in servo_ids)
 
 
 class ManagedAprilTagProcess(object):
@@ -191,6 +195,7 @@ class JetsonWorkspaceSampler(object):
         self.battery_mv = None
         self.last_axes = (0.0, 0.0, 0.0)
         self.last_motion_axes = (0.0, 0.0, 0.0)
+        self.motion_input_active = False
         self.last_buttons = {"a": False, "b": False, "x": False, "y": False, "lb": False, "rb": False}
 
         self.session_payload = {
@@ -305,7 +310,7 @@ class JetsonWorkspaceSampler(object):
                 time.sleep(0.03)
         self.fault = "servo feedback read failed: %s" % last_error
         self.log("FEEDBACK_FAILED %s" % last_error)
-        return not strict
+        return False
 
     def home_errors(self):
         return self.mapper.startup_check_errors(self.current_raw)
@@ -367,10 +372,9 @@ class JetsonWorkspaceSampler(object):
             item = self.mapper.mappings[servo_id]
             low = min(int(item["raw_min"]), int(item["raw_max"]))
             high = max(int(item["raw_min"]), int(item["raw_max"]))
-            home_limit = int(self.home_raw[servo_id])
             value = int(raw_values[servo_id])
             value = int(clamp(value, low, high))
-            limited[servo_id] = min(value, home_limit)
+            limited[servo_id] = value
         return limited
 
     def move_to_motion_home(self):
@@ -382,10 +386,7 @@ class JetsonWorkspaceSampler(object):
             return True
         time_ms = max(500, int((max_error / max(1.0, float(self.args.startup_home_raw_s))) * 1000.0))
         targets = [(servo_id, int(target_raw[servo_id])) for servo_id in self.servo_ids]
-        print(
-            "  HOME move command: target raw 1=%d 2=%d 3=%d, time=%d ms"
-            % (target_raw[1], target_raw[2], target_raw[3], time_ms)
-        )
+        print("  HOME move command: target raw %s, time=%d ms" % (format_servo_raw(target_raw, self.servo_ids), time_ms))
         try:
             self.driver.set_servo_positions(targets, time_ms)
         except Exception as exc:
@@ -404,11 +405,8 @@ class JetsonWorkspaceSampler(object):
             return False
         errors = self.mapper.home_errors(self.current_raw)
         max_after = max(abs(int(errors[servo_id])) for servo_id in self.servo_ids)
-        print(
-            "  HOME result raw:  1=%d 2=%d 3=%d"
-            % (self.current_raw[1], self.current_raw[2], self.current_raw[3])
-        )
-        print("  HOME result errors to motion home: 1=%+d 2=%+d 3=%+d" % (errors[1], errors[2], errors[3]))
+        print("  HOME result raw:  %s" % format_servo_raw(self.current_raw, self.servo_ids))
+        print("  HOME result errors to motion home: %s" % format_servo_raw(errors, self.servo_ids))
         if max_after > int(self.args.home_tolerance):
             print("Startup HOME did not reach configured motion home within tolerance.")
             return False
@@ -418,21 +416,15 @@ class JetsonWorkspaceSampler(object):
         print("")
         print("Startup safety check")
         startup_raw = self.mapper.startup_check_raw
-        print(
-            "  Expected startup raw: 1=%d 2=%d 3=%d"
-            % (startup_raw[1], startup_raw[2], startup_raw[3])
-        )
-        print("  Motion mapping home raw: 1=%d 2=%d 3=%d" % (self.home_raw[1], self.home_raw[2], self.home_raw[3]))
+        print("  Expected startup raw: %s" % format_servo_raw(startup_raw, self.servo_ids))
+        print("  Motion mapping home raw: %s" % format_servo_raw(self.home_raw, self.servo_ids))
         print("  This sampler will read feedback before any move command.")
         if not self.read_feedback(force=True, strict=True):
             print(self.fault or "feedback failed")
             return False
         errors = self.home_errors()
-        print(
-            "  Current raw:       1=%d 2=%d 3=%d"
-            % (self.current_raw[1], self.current_raw[2], self.current_raw[3])
-        )
-        print("  Home error ticks:  1=%+d 2=%+d 3=%+d" % (errors[1], errors[2], errors[3]))
+        print("  Current raw:       %s" % format_servo_raw(self.current_raw, self.servo_ids))
+        print("  Home error ticks:  %s" % format_servo_raw(errors, self.servo_ids))
         violations = self.raw_range_violations()
         if violations:
             self.print_raw_range_violations(violations)
@@ -453,8 +445,11 @@ class JetsonWorkspaceSampler(object):
                 errors = self.home_errors()
                 if not self.at_home():
                     print("Startup refused: arm is still not near configured startup_check_raw.")
-                    print("Startup errors ticks: 1=%+d 2=%+d 3=%+d" % (errors[1], errors[2], errors[3]))
+                    print("Startup errors ticks: %s" % format_servo_raw(errors, self.servo_ids))
                     return False
+        if self.args.manual_only:
+            self.sync_control_state_to_feedback()
+            return True
         age = snapshot_age_ms(self.args.base_camera_snapshot)
         if age is None:
             print("AprilTag snapshot is missing or has no timestamp: %s" % self.args.base_camera_snapshot)
@@ -486,10 +481,14 @@ class JetsonWorkspaceSampler(object):
         self.sync_control_state_to_feedback()
         return True
 
-    def axis_to_step(self, value, threshold=0.55):
-        if abs(float(value)) < threshold:
+    def axis_to_motion(self, value, deadzone=0.18):
+        """Return a proportional signed input after a small physical-stick deadzone."""
+        value = float(value)
+        magnitude = abs(value)
+        if magnitude <= float(deadzone):
             return 0.0
-        return 1.0 if value > 0 else -1.0
+        scaled = (magnitude - float(deadzone)) / max(1e-6, 1.0 - float(deadzone))
+        return scaled if value > 0.0 else -scaled
 
     def cycle_safe_scan(self):
         modes = ["FREE", "X", "Y", "Z"]
@@ -517,17 +516,27 @@ class JetsonWorkspaceSampler(object):
         if buttons.get("x", False) and not previous.get("x", False):
             self.cycle_safe_scan()
 
-        if buttons.get("b", False) and not previous.get("b", False):
+        if not self.args.manual_only and buttons.get("b", False) and not previous.get("b", False):
             self.record_sample("sample_%04d" % (self.sample_count + 1))
 
-        motion_x = self.axis_to_step(dpad_x)
-        motion_y = self.axis_to_step(dpad_y)
-        motion_z = self.axis_to_step(right_y)
+        motion_x = self.axis_to_motion(dpad_x)
+        motion_y = self.axis_to_motion(dpad_y)
+        motion_z = self.axis_to_motion(right_y)
         self.last_motion_axes = (motion_x, motion_y, motion_z)
         if max(abs(motion_x), abs(motion_y), abs(motion_z)) < 0.01:
+            if self.args.follow_feedback and self.motion_input_active:
+                # On release, cancel only the queued increment from that input gesture.
+                # Do not continuously chase feedback, which could turn gravity sag into a new target.
+                self.target_position = list(self.current_position)
+                self.target_angles = list(self.current_angles)
+                self.target_raw = self.clamp_raw_to_motion_limits(self.current_raw)
+            self.motion_input_active = False
             return True
 
-        next_position = list(self.target_position)
+        # In feedback-follow mode each input increment starts from the measured arm pose.
+        # This prevents a queued virtual target from continuing to move the arm after release.
+        self.motion_input_active = True
+        next_position = list(self.current_position) if self.args.follow_feedback else list(self.target_position)
         next_position[0] += motion_x * self.speed_xy * self.update_interval
         next_position[1] += -motion_y * self.speed_xy * self.update_interval
         next_position[2] += -motion_z * self.speed_z * self.update_interval
@@ -558,7 +567,6 @@ class JetsonWorkspaceSampler(object):
                 value = current + (int(max_delta) if delta > 0 else -int(max_delta))
             item = self.mapper.mappings[servo_id]
             value = int(clamp(value, min(item["raw_min"], item["raw_max"]), max(item["raw_min"], item["raw_max"])))
-            value = min(value, int(self.home_raw[servo_id]))
             if self.max_feedback_lead_ticks > 0:
                 feedback = int(self.current_raw[servo_id])
                 value = int(clamp(
@@ -567,7 +575,6 @@ class JetsonWorkspaceSampler(object):
                     feedback + self.max_feedback_lead_ticks,
                 ))
                 value = int(clamp(value, min(item["raw_min"], item["raw_max"]), max(item["raw_min"], item["raw_max"])))
-                value = min(value, int(self.home_raw[servo_id]))
             next_raw[servo_id] = value
             if value != current:
                 changed = True
@@ -582,11 +589,7 @@ class JetsonWorkspaceSampler(object):
             proposed_angles[0], proposed_angles[1], proposed_angles[2]
         )
         if not proposed_ok:
-            self.log("COMMAND_FK_FAIL raw=1:%d 2:%d 3:%d" % (
-                proposed_raw[1],
-                proposed_raw[2],
-                proposed_raw[3],
-            ))
+            self.log("COMMAND_FK_FAIL raw=%s" % format_servo_raw(proposed_raw, self.servo_ids))
             return False
         if proposed_position[2] >= z_min:
             return True
@@ -599,8 +602,8 @@ class JetsonWorkspaceSampler(object):
             return True
 
         self.log(
-            "COMMAND_Z_FLOOR_HOLD proposed_z=%.3f z_min=%.3f raw=1:%d 2:%d 3:%d"
-            % (proposed_position[2], z_min, proposed_raw[1], proposed_raw[2], proposed_raw[3])
+            "COMMAND_Z_FLOOR_HOLD proposed_z=%.3f z_min=%.3f raw=%s"
+            % (proposed_position[2], z_min, format_servo_raw(proposed_raw, self.servo_ids))
         )
         return False
 
@@ -727,7 +730,7 @@ class JetsonWorkspaceSampler(object):
         return True
 
     def status_text(self):
-        age = snapshot_age_ms(self.args.base_camera_snapshot)
+        age = None if self.args.manual_only else snapshot_age_ms(self.args.base_camera_snapshot)
         age_text = "" if age is None else "%.0f" % age
         lines = [
             "jetson_py36 AprilTag workspace sampler",
@@ -737,9 +740,9 @@ class JetsonWorkspaceSampler(object):
             "port: %s" % self.args.port,
             "hand_tag_id: %s" % self.args.hand_tag_id,
             "safe_scan: %s" % self.safe_scan_mode,
-            "feedback_raw: 1=%d 2=%d 3=%d" % (self.current_raw[1], self.current_raw[2], self.current_raw[3]),
-            "target_raw: 1=%d 2=%d 3=%d" % (self.target_raw[1], self.target_raw[2], self.target_raw[3]),
-            "command_raw: 1=%d 2=%d 3=%d" % (self.command_raw[1], self.command_raw[2], self.command_raw[3]),
+            "feedback_raw: %s" % format_servo_raw(self.current_raw, self.servo_ids),
+            "target_raw: %s" % format_servo_raw(self.target_raw, self.servo_ids),
+            "command_raw: %s" % format_servo_raw(self.command_raw, self.servo_ids),
             "fk_xyz_mm: %.3f %.3f %.3f" % (self.current_position[0], self.current_position[1], self.current_position[2]),
             "target_xyz_mm: %.3f %.3f %.3f" % (self.target_position[0], self.target_position[1], self.target_position[2]),
             "axes: dpad_x=%+.2f dpad_y=%+.2f right_y=%+.2f" % self.last_axes,
@@ -763,7 +766,8 @@ class JetsonWorkspaceSampler(object):
         print("Controls:")
         print("  D-pad: X/Y low-speed motion")
         print("  Right stick Y: Z low-speed motion")
-        print("  B: sample current AprilTag XYZ + servo raw")
+        if not self.args.manual_only:
+            print("  B: sample current AprilTag XYZ + servo raw")
         print("  X: cycle safe-scan FREE/X/Y/Z")
         print("  Y: emergency stop sampler")
         print("  A: quit")
@@ -789,11 +793,9 @@ class JetsonWorkspaceSampler(object):
                 age = snapshot_age_ms(self.args.base_camera_snapshot)
                 age_text = "unknown" if age is None else "%.0fms" % age
                 print(
-                    "status raw=(%d,%d,%d) fk=(%.1f,%.1f,%.1f) tag_age=%s samples=%d"
+                    "status raw=(%s) fk=(%.1f,%.1f,%.1f) tag_age=%s samples=%d"
                     % (
-                        self.current_raw[1],
-                        self.current_raw[2],
-                        self.current_raw[3],
+                        format_servo_raw(self.current_raw, self.servo_ids),
                         self.current_position[0],
                         self.current_position[1],
                         self.current_position[2],
@@ -831,6 +833,7 @@ def parse_args(argv):
     parser.add_argument("--base-camera-snapshot", default=DEFAULT_APRILTAG_JSON)
     parser.add_argument("--apriltag-launch", default=DEFAULT_APRILTAG_LAUNCH)
     parser.add_argument("--no-autostart-apriltag", action="store_true")
+    parser.add_argument("--manual-only", action="store_true", help="run the main IK/FK gamepad loop without AprilTag or camera input")
     parser.add_argument("--apriltag-startup-timeout", type=float, default=15.0)
     parser.add_argument("--calibration", default=DEFAULT_CALIBRATION)
     parser.add_argument("--servo-config", default=DEFAULT_SERVO_CONFIG)
@@ -851,6 +854,11 @@ def parse_args(argv):
     parser.add_argument("--speed-z-mm-s", type=float, default=DEFAULT_SPEED_Z_MM_S)
     parser.add_argument("--max-servo-raw-s", type=float, default=DEFAULT_MAX_SERVO_RAW_S)
     parser.add_argument("--max-feedback-lead-ticks", type=int, default=DEFAULT_MAX_FEEDBACK_LEAD_TICKS)
+    parser.add_argument(
+        "--follow-feedback",
+        action="store_true",
+        help="build each manual input increment from servo feedback and cancel queued motion on release",
+    )
     parser.add_argument("--hold-refresh-sec", type=float, default=0.5)
     parser.add_argument("--startup-home-raw-s", type=float, default=DEFAULT_STARTUP_HOME_RAW_S)
     parser.add_argument("--z-min-mm", type=float, default=DEFAULT_Z_MIN_MM)
@@ -873,7 +881,7 @@ def main(argv=None):
     signal.signal(signal.SIGTERM, handle_signal)
 
     try:
-        if not args.no_autostart_apriltag:
+        if not args.no_autostart_apriltag and not args.manual_only:
             apriltag_proc = ManagedAprilTagProcess(
                 args.apriltag_launch,
                 args.base_camera_snapshot,

@@ -1,0 +1,36 @@
+{
+  "timestamp_local": "2026-07-08T11:46:19+08:00",
+  "label": "bottom_safe_lowest_vertical",
+  "port": "COM19",
+  "baudrate": 9600,
+  "read_only": true,
+  "command_byte": "0x15",
+  "tx_packet_hex": "55 55 06 15 03 01 02 03",
+  "notes": [
+    "User manually moved the three arm servos to the lowest pose, vertical to the ground.",
+    "The 0x03 byte in the packet payload is the count/id value, not the command byte.",
+    "No motion command was sent during this capture.",
+    "Raw values are servo-local encoder coordinates and are not expected to match just because the mechanism is symmetric."
+  ],
+  "samples": {
+    "1": [-31, -31, -31, -31, -31, -31, -31],
+    "2": [1075, 1075, 1075, 1075, 1075, 1075, 1075],
+    "3": [605, 605, 605, 605, 605, 605, 606]
+  },
+  "median_raw": {
+    "1": -31,
+    "2": 1075,
+    "3": 605
+  },
+  "spread_ticks": {
+    "1": 0,
+    "2": 0,
+    "3": 1
+  },
+  "approx_0_240deg": {
+    "1": -7.44,
+    "2": 258.0,
+    "3": 145.2
+  },
+  "config_action": "Use these values as startup_check_raw only until a full multi-pose structure calibration defines the safe motion mapping."
+}

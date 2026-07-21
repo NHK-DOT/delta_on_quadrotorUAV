@@ -1,0 +1,554 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>78arm Tool Vision</title>
+  <style>
+    :root {
+      --bg: #0f1417;
+      --panel: #171f23;
+      --panel-2: #1f292e;
+      --line: #2d3a40;
+      --text: #e7eef0;
+      --muted: #8fa1a7;
+      --teal: #21b6a8;
+      --amber: #e0a634;
+      --red: #e05b5b;
+      --green: #64c37d;
+      --blue: #6ea4dc;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--bg);
+      color: var(--text);
+      font-family: "Segoe UI", "Microsoft YaHei", Arial, sans-serif;
+      letter-spacing: 0;
+    }
+
+    button, input {
+      font: inherit;
+    }
+
+    .app {
+      display: grid;
+      grid-template-columns: 360px minmax(0, 1fr);
+      min-height: 100vh;
+    }
+
+    .side {
+      border-right: 1px solid var(--line);
+      background: #12191d;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      font-weight: 650;
+    }
+
+    .status-pill {
+      min-width: 86px;
+      text-align: center;
+      border: 1px solid var(--line);
+      border-radius: 5px;
+      padding: 6px 8px;
+      color: var(--muted);
+      background: #0d1215;
+      font-size: 12px;
+    }
+
+    .status-pill.ok { color: var(--green); border-color: rgba(100, 195, 125, .35); }
+    .status-pill.warn { color: var(--amber); border-color: rgba(224, 166, 52, .42); }
+    .status-pill.bad { color: var(--red); border-color: rgba(224, 91, 91, .42); }
+
+    .search {
+      width: 100%;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: #0b1114;
+      color: var(--text);
+      padding: 11px 12px;
+      outline: none;
+    }
+
+    .search:focus {
+      border-color: var(--teal);
+    }
+
+    .tools {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 8px;
+      overflow: auto;
+      padding-right: 2px;
+    }
+
+    .tool {
+      width: 100%;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--text);
+      padding: 11px 12px;
+      cursor: pointer;
+      text-align: left;
+    }
+
+    .tool:hover {
+      border-color: #45606a;
+      background: var(--panel-2);
+    }
+
+    .tool.selected {
+      border-color: var(--teal);
+      box-shadow: inset 3px 0 0 var(--teal);
+    }
+
+    .tool strong {
+      display: block;
+      font-size: 14px;
+      font-weight: 650;
+      line-height: 1.25;
+    }
+
+    .tool span {
+      color: var(--muted);
+      display: block;
+      margin-top: 3px;
+      font-size: 12px;
+    }
+
+    .badge {
+      border-radius: 4px;
+      padding: 4px 6px;
+      font-size: 11px;
+      color: #101718;
+      background: var(--amber);
+      white-space: nowrap;
+    }
+
+    .badge.live {
+      background: var(--teal);
+    }
+
+    .main {
+      display: grid;
+      grid-template-rows: auto minmax(0, 1fr) auto;
+      min-width: 0;
+      min-height: 100vh;
+    }
+
+    .topbar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: center;
+      padding: 16px 18px;
+      border-bottom: 1px solid var(--line);
+      background: #12191d;
+    }
+
+    .target-title {
+      min-width: 0;
+    }
+
+    .target-title .label {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .target-title .value {
+      font-size: 22px;
+      font-weight: 680;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .button {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      color: var(--text);
+      padding: 9px 12px;
+      cursor: pointer;
+    }
+
+    .button.primary {
+      border-color: rgba(33, 182, 168, .6);
+      background: #12302f;
+    }
+
+    .button:disabled {
+      color: #647278;
+      cursor: not-allowed;
+    }
+
+    .stage {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 320px;
+      background: #090d0f;
+    }
+
+    .video-wrap {
+      min-width: 0;
+      min-height: 0;
+      display: grid;
+      place-items: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .video-wrap img {
+      max-width: 100%;
+      max-height: 100%;
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background: #050809;
+    }
+
+    .empty {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 18px;
+      color: var(--muted);
+      background: #0d1215;
+      max-width: 520px;
+      line-height: 1.5;
+    }
+
+    .readout {
+      border-left: 1px solid var(--line);
+      background: #11181b;
+      padding: 16px;
+      display: grid;
+      align-content: start;
+      gap: 12px;
+      overflow: auto;
+    }
+
+    .metric {
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--panel);
+      padding: 11px;
+    }
+
+    .metric .k {
+      color: var(--muted);
+      font-size: 12px;
+      margin-bottom: 5px;
+    }
+
+    .metric .v {
+      font-size: 16px;
+      font-weight: 620;
+      word-break: break-word;
+    }
+
+    .log {
+      border-top: 1px solid var(--line);
+      background: #0d1215;
+      padding: 12px 18px;
+      color: var(--muted);
+      font-size: 12px;
+      min-height: 42px;
+      white-space: pre-wrap;
+    }
+
+    @media (max-width: 980px) {
+      .app {
+        grid-template-columns: 1fr;
+      }
+      .side {
+        border-right: 0;
+        border-bottom: 1px solid var(--line);
+        max-height: 42vh;
+      }
+      .stage {
+        grid-template-columns: 1fr;
+      }
+      .readout {
+        border-left: 0;
+        border-top: 1px solid var(--line);
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <aside class="side">
+      <div class="brand">
+        <h1>78arm Tool Vision</h1>
+        <div id="health" class="status-pill">offline</div>
+      </div>
+      <input id="filter" class="search" placeholder="wrench / screwdriver / 扳手" autocomplete="off">
+      <div id="tools" class="tools"></div>
+    </aside>
+
+    <main class="main">
+      <header class="topbar">
+        <div class="target-title">
+          <div class="label">Target</div>
+          <div id="targetName" class="value">none</div>
+        </div>
+        <div class="actions">
+          <button id="openRemote" class="button" disabled>Open Jetson</button>
+          <button id="refresh" class="button primary">Refresh</button>
+        </div>
+      </header>
+
+      <section class="stage">
+        <div class="video-wrap">
+          <img id="stream" alt="Jetson camera stream" style="display:none;">
+          <div id="empty" class="empty">none</div>
+        </div>
+        <aside class="readout">
+          <div class="metric"><div class="k">Detection</div><div id="detValid" class="v">none</div></div>
+          <div class="metric"><div class="k">Confidence</div><div id="confidence" class="v">none</div></div>
+          <div class="metric"><div class="k">Center</div><div id="center" class="v">none</div></div>
+          <div class="metric"><div class="k">Distance</div><div id="distance" class="v">none</div></div>
+          <div class="metric"><div class="k">FPS</div><div id="fps" class="v">none</div></div>
+          <div class="metric"><div class="k">Age</div><div id="age" class="v">none</div></div>
+        </aside>
+      </section>
+
+      <footer id="log" class="log">Ready.</footer>
+    </main>
+  </div>
+
+  <script>
+    const els = {
+      tools: document.getElementById('tools'),
+      filter: document.getElementById('filter'),
+      health: document.getElementById('health'),
+      targetName: document.getElementById('targetName'),
+      stream: document.getElementById('stream'),
+      empty: document.getElementById('empty'),
+      log: document.getElementById('log'),
+      openRemote: document.getElementById('openRemote'),
+      refresh: document.getElementById('refresh'),
+      detValid: document.getElementById('detValid'),
+      confidence: document.getElementById('confidence'),
+      center: document.getElementById('center'),
+      distance: document.getElementById('distance'),
+      fps: document.getElementById('fps'),
+      age: document.getElementById('age')
+    };
+
+    let tools = [];
+    let selected = null;
+    let jetson = null;
+    let frameTimer = null;
+
+    function writeLog(text) {
+      els.log.textContent = text || 'Ready.';
+    }
+
+    function fmt(n, digits = 2) {
+      return Number.isFinite(Number(n)) ? Number(n).toFixed(digits) : '--';
+    }
+
+    function renderTools() {
+      const q = els.filter.value.trim().toLowerCase();
+      els.tools.innerHTML = '';
+      tools
+        .filter(t => !q || t.english.toLowerCase().includes(q) || t.zh.includes(q) || t.category.toLowerCase().includes(q))
+        .forEach(t => {
+          const btn = document.createElement('button');
+          btn.className = 'tool' + (selected === t.id ? ' selected' : '');
+          btn.innerHTML = `<div><strong>${t.english} (${t.zh})</strong><span>${t.category}</span></div><div class="badge ${t.active ? 'live' : ''}">${t.active ? 'model' : 'not detected'}</div>`;
+          btn.onclick = () => selectTool(t.id);
+          els.tools.appendChild(btn);
+        });
+    }
+
+    function setMetricsNone(status = 'none') {
+      els.detValid.textContent = status;
+      els.confidence.textContent = 'none';
+      els.center.textContent = 'none';
+      els.distance.textContent = 'none';
+      els.fps.textContent = 'none';
+      els.age.textContent = 'none';
+    }
+
+    async function api(path, options) {
+      const res = await fetch(path, options);
+      const text = await res.text();
+      let body = {};
+      try { body = text ? JSON.parse(text) : {}; } catch (_) { body = { raw: text }; }
+      if (!res.ok) {
+        throw Object.assign(new Error(body.error || body.message || res.statusText), { body, status: res.status });
+      }
+      return body;
+    }
+
+    async function loadTools() {
+      const data = await api('/api/tools');
+      tools = data.tools || [];
+      renderTools();
+    }
+
+    async function loadState() {
+      const data = await api('/api/state');
+      jetson = data.jetson;
+      selected = data.state.selected_tool;
+      const tool = data.tool;
+      els.targetName.textContent = tool ? `${tool.english} (${tool.zh})` : 'none';
+      els.openRemote.disabled = !jetson;
+      els.openRemote.onclick = () => window.open(jetson.preview_url, '_blank');
+      renderTools();
+      if (selected === 'wrench') {
+        showStream();
+      } else {
+        hideStream('not detected');
+        setMetricsNone(selected ? 'not detected' : 'none');
+      }
+      if (data.state.last_message) {
+        writeLog(data.state.last_message);
+      }
+    }
+
+    function showStream() {
+      if (!jetson) return;
+      els.stream.style.display = '';
+      els.empty.style.display = 'none';
+      updateFrame();
+      if (frameTimer) clearInterval(frameTimer);
+      frameTimer = setInterval(updateFrame, 350);
+    }
+
+    function updateFrame() {
+      if (selected !== 'wrench') return;
+      els.stream.src = `/api/raw.jpg?t=${Date.now()}`;
+    }
+
+    function hideStream(message) {
+      if (frameTimer) {
+        clearInterval(frameTimer);
+        frameTimer = null;
+      }
+      els.stream.removeAttribute('src');
+      els.stream.style.display = 'none';
+      els.empty.style.display = '';
+      els.empty.textContent = message;
+    }
+
+    async function selectTool(toolId) {
+      const tool = tools.find(t => t.id === toolId);
+      selected = toolId;
+      renderTools();
+      els.targetName.textContent = tool ? `${tool.english} (${tool.zh})` : toolId;
+      writeLog(`Selecting ${tool ? tool.english : toolId}...`);
+      try {
+        const data = await api('/api/select', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ tool_id: toolId })
+        });
+        jetson = data.jetson;
+        if (toolId === 'wrench' && data.started) {
+          showStream();
+          writeLog((data.message || 'started') + '\\n' + ((data.ssh && data.ssh.stdout) || '').trim());
+        } else {
+          hideStream('not detected');
+          setMetricsNone('not detected');
+          writeLog(`${tool.english} (${tool.zh}): not detected`);
+        }
+      } catch (err) {
+        hideStream('not detected');
+        setMetricsNone('not detected');
+        writeLog(`Start failed: ${err.message}\\n${err.body && err.body.ssh ? err.body.ssh.stderr : ''}`);
+      }
+    }
+
+    async function pollHealth() {
+      try {
+        const health = await api('/api/health');
+        const ok = health.status === 'ok';
+        els.health.textContent = ok ? `online ${fmt(health.age_sec, 1)}s` : (health.status || 'offline');
+        els.health.className = 'status-pill ' + (ok ? 'ok' : 'warn');
+      } catch (_) {
+        els.health.textContent = 'offline';
+        els.health.className = 'status-pill bad';
+      }
+    }
+
+    async function pollLatest() {
+      if (selected !== 'wrench') {
+        setMetricsNone(selected ? 'not detected' : 'none');
+        return;
+      }
+      try {
+        const latest = await api('/api/latest');
+        const target = latest.target || {};
+        if (!latest.valid || !target || target.conf == null) {
+          setMetricsNone('not detected');
+          return;
+        }
+        els.detValid.textContent = 'detected';
+        els.confidence.textContent = fmt(target.conf, 3);
+        const center = target.center_px || target.center || {};
+        els.center.textContent = center.x == null ? 'none' : `${fmt(center.x, 0)}, ${fmt(center.y, 0)}`;
+        els.distance.textContent = target.distance_m == null ? 'none' : `${fmt(target.distance_m, 3)} m`;
+        els.fps.textContent = latest.fps == null ? 'none' : fmt(latest.fps, 1);
+        const ts = latest.timestamp_unix || latest.timestamp;
+        els.age.textContent = ts ? `${fmt((Date.now() / 1000) - Number(ts), 2)} s` : 'none';
+      } catch (_) {
+        setMetricsNone('not detected');
+      }
+    }
+
+    els.filter.oninput = renderTools;
+    els.refresh.onclick = async () => {
+      await loadState();
+      await pollHealth();
+      await pollLatest();
+    };
+
+    (async function boot() {
+      try {
+        await loadTools();
+        await loadState();
+        await pollHealth();
+        await pollLatest();
+        setInterval(pollHealth, 1500);
+        setInterval(pollLatest, 400);
+      } catch (err) {
+        writeLog(`Boot failed: ${err.message}`);
+      }
+    })();
+  </script>
+</body>
+</html>

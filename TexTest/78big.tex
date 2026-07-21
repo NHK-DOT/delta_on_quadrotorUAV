@@ -1,0 +1,442 @@
+% !TEX program = xelatex
+\documentclass[12pt,a4paper]{ctexart}
+
+\usepackage[margin=2.54cm]{geometry}
+\usepackage{graphicx}
+\setmainfont{Times New Roman}
+\setCJKmainfont{SimSun}
+\setCJKsansfont{SimHei}
+\renewcommand{\arraystretch}{1.25}
+\setlength{\emergencystretch}{3em}
+\providecommand{\allowbreak}{\penalty0\relax}
+\ctexset{
+  section={name={第,章},number=\chinese{section},format=\centering\zihao{3}\bfseries},
+  subsection={format=\zihao{4}\heiti\bfseries}
+}
+
+\begin{document}
+\begin{titlepage}
+\centering
+\vspace*{0.5cm}
+\includegraphics[width=3.2cm]{hhu_emblem.png}
+
+\vspace{0.4cm}
+\includegraphics[width=10.8cm]{hhu_name.png}
+
+\vspace{1.4cm}
+{\zihao{0}\bfseries 课程实验报告\par}
+
+\vspace{1.1cm}
+{\zihao{2}\bfseries UWB 引导无人机抓取系统集成\par}
+
+\vfill
+{\zihao{3}
+\renewcommand{\arraystretch}{1.8}
+\begin{tabular}{rl}
+学院：& 人工智能与自动化 \\
+专业：& 自动化 \\
+学号：& 2421020208 \\
+姓名：& 任驰 \\
+\end{tabular}
+}
+
+\vfill
+{\zihao{4} 2026 年 5 月\par}
+\end{titlepage}
+
+\begin{center}{\zihao{3}\bfseries 摘\quad 要}\end{center}
+{\zihao{4}
+
+本研究围绕室内资源受限条件下的无人机自主接近、悬停、目标抓取与返航任务展开，完成了 UWB 测向定位、飞控桥接、任务状态机、安全约束和抓取接口的系统集成。系统以 STM32MP257F-DK 为板端计算平台，运行 ROS~2 Humble；以 CUAVv5 飞控和 MAVROS 为飞行控制接口；以光流测距融合提供室内本地位置估计；以机载单基站 UWB AOA 模块输出目标 tag 的相对距离、方位角和俯仰信息。系统不以完整 SLAM 为目标，而是采用 ``UWB 近距离引导 + 飞控本地位置返航 + 视觉/机械臂末段接口'' 的分层方案，验证从起飞、UWB 接近、下降等待抓取、复飞返航、投放到降落的任务链路。
+
+项目构建了 ROS~2 工作空间，将自定义消息、飞控桥接、UWB 串口驱动、导航状态机、安全检查和视觉坐标转换划分为独立功能包。UWB 驱动完成协议解析、有效性判断及卡尔曼滤波；飞控桥接节点获取飞控状态、本地位置、电池和链路新鲜度，并转发解锁、模式切换、起飞、速度设定值和降落命令；导航节点根据 UWB 相对观测生成限幅水平速度，在目标进入前向扇区和捕获区域后执行稳定悬停与下降。抓取与投放采用命令/完成信号握手机制，便于与机械臂或夹爪模块隔离联调。
+
+系统已经形成 mock、台架速度、低高度起降、航点返航、UWB 接近降落以及 UWB 接近--抓取--返航--投放--降落等分级入口，并设置高度、速度、速度斜坡、信号超时、任务半径、低电量、飞控链路和人工接管等安全条件。当前工作完成了导航与接口层的集成验证基础；视觉精定位和真实机械臂抓取仍需通过独立接口、低风险台架试验和逐级实飞继续验证。
+
+\noindent\textbf{关键词：}无人机抓取；UWB AOA；ROS~2；MAVROS；任务状态机；室内定位；安全控制；视觉接口
+}
+\clearpage
+
+\begin{center}{\zihao{3}\bfseries Abstract}\end{center}
+{\zihao{-3}
+\noindent
+
+This study develops an integrated indoor UAV target-approach and capture system for resource-constrained environments. The system uses an STM32MP257F-DK as the ROS~2 Humble computing platform, a CUAVv5 flight controller connected through MAVROS, optical-flow and range sensing for local position estimation, and an onboard single-anchor UWB AOA module for target-relative measurements. Rather than attempting full SLAM, the project adopts a layered workflow in which UWB guides target approach, flight-controller local position supports return-to-home, and visual perception plus a gripper or robotic-arm interface are reserved for final alignment and capture.
+
+\noindent
+
+The software is divided into ROS~2 packages for custom messages, flight-controller bridging, UWB serial acquisition and filtering, mission navigation, safety monitoring, and visual-coordinate transformation. A mission state machine coordinates takeoff, hovering, UWB-guided approach, descent, grasp waiting, climb, local-position return, payload release waiting, and landing. The project provides staged mock, bench, low-altitude flight, waypoint-return, UWB-approach, and grasp-return entries. The present work establishes the integration basis for the navigation and interface layers; vision-based final alignment and real capture hardware require further isolated and incremental testing.
+
+\noindent\textbf{Keywords:} UAV capture; UWB angle of arrival; ROS~2; MAVROS; mission state machine; indoor positioning; safety control
+}
+
+\clearpage
+\tableofcontents
+\clearpage
+
+\section{绪论}
+\subsection{研究背景与意义}
+室内无人机执行目标接近、拾取和投放任务时，既需要稳定的飞行控制，也需要在目标附近获得可靠的相对位置信息。卫星导航在室内通常不可用或精度不足，单独依赖视觉又可能受到光照、遮挡、算力和检测距离的影响。因此，将飞控的本地位置估计、UWB 相对测距测角和末段视觉精定位组合起来，是构建轻量化室内抓取系统的一种可行思路。
+
+本项目关注的是完整任务链路能否在有限硬件资源下闭合，而不是一次性解决全局建图问题。系统首先验证起飞、悬停、UWB 引导接近、下降、等待抓取、复飞、返航、等待投放和降落等环节的接口与状态转换；随后再逐步提高视觉定位和抓取执行的自动化程度。这种分层验证方法可将飞行安全、相对导航和末端操作解耦，降低联调风险。
+
+\subsection{研究目标与主要内容}
+本研究的目标是建立一套可部署在板端的 ROS~2 无人机任务系统，使其能够接收 UWB AOA 目标信息，生成受安全限制的速度控制量，并与飞控、视觉模块和抓取执行机构进行接口协同。研究内容覆盖 STM32MP257F-DK 板端部署、CUAVv5/MAVROS 飞控桥接、UWB 串口解析与滤波、有限状态机任务编排、视觉坐标接口、抓取投放握手以及低电量、链路超时、任务半径和人工接管等安全条件。
+
+\subsection{技术路线与验证原则}
+项目采用“数据链路验证—无桨台架—低高度阶段任务—完整抓取返航”的递进路线。每个阶段均要求话题输入、状态转换与控制输出可以独立观测；真实运动命令只有在飞控模式、解锁状态、估计器健康和链路新鲜度满足要求时才允许转发。任务日志同时记录 UWB 观测、本地位置、速度设定值、飞控模式和抓取事件，使后续问题能够追溯到传感、坐标、状态条件或执行层。
+
+\subsection{项目特点}
+本项目的特点在于不把 UWB、视觉、飞控和抓取机构视为彼此独立的演示模块，而是通过统一的 ROS~2 消息、服务与状态机将其组织为可分级验证的任务系统。上层只给出“接近、悬停、抓取、返航”等任务语义，底层飞控保留姿态稳定、模式保护和电机控制权；这一分层既适合资源有限的嵌入式平台，也为后续替换传感器、增加机械臂或引入视觉精定位留下了清晰接口。
+
+\clearpage
+\section{系统总体方案}
+\subsection{硬件与软件组成}
+系统由板端计算、飞控执行、室内本地定位、UWB 相对引导、视觉精定位和抓取执行六部分组成，如表\ref{tab:modules} 所示。
+
+\begin{table}[htbp]
+\centering
+\caption{系统主要模块及职责}\label{tab:modules}
+\begin{tabular}{p{3.3cm}p{10cm}}
+\hline
+模块 & 主要职责 \\
+\hline
+STM32MP257F-DK & 运行 Docker 容器中的 ROS~2 Humble、任务状态机、UWB 数据链路和飞控桥接节点。\\
+CUAVv5 飞控 & 执行解锁、模式切换、起飞、速度设定值、悬停与降落，并输出本地位置和飞行状态。\\
+光流与测距模块 & 接入飞控，为室内定高和本地位置估计提供观测基础。\\
+UWB AOA 模块 & 机载单基站读取目标 tag 的相对距离、方位角和俯仰相关信息，用于接近阶段的相对导航。\\
+视觉模块 & 在近距离阶段输出目标检测和相对偏移，当前作为独立桥接与坐标转换接口。\\
+抓取/投放模块 & 接收抓取或投放命令，并以完成信号通知导航状态机继续执行。\\
+\hline
+\end{tabular}
+\end{table}
+
+\subsection{动力与飞控硬件配置}
+飞行平台采用 3115 规格无刷电机作为旋翼动力单元，配套好盈科技 \texttt{XRotor-\allowbreak{}65A-\allowbreak{}4in1-\allowbreak{}6S-\allowbreak{}Lite-\allowbreak{}BLS-\allowbreak{}RTF} 四合一电调。3115 电机的定子尺寸适合承担中等载荷多旋翼的动力需求，四合一电调则将四路功率驱动集中在同一模块中，能够减少独立电调带来的布线数量和安装空间。实际选配螺旋桨与电池时，仍需根据电机 KV 值、整机重量、目标推重比和连续电流重新核算，不能只依据电机外形尺寸确定。
+
+\begin{table}[htbp]
+\centering
+\caption{飞行平台主要硬件及接口关系}\label{tab:flight-hardware}
+{\zihao{5}
+\begin{tabular}{p{3.0cm}p{4.0cm}p{6.1cm}}
+\hline
+硬件 & 型号或方案 & 在系统中的作用与接口 \\
+\hline
+无刷电机 & 3115 规格电机 & 接收电调三相输出并驱动旋翼；电机、桨叶和机臂安装共同决定振动与动力余量。\\
+四合一电调 & 好盈 XRotor-\allowbreak{}65A-\allowbreak{}4in1-\allowbreak{}6S-\allowbreak{}Lite-\allowbreak{}BLS-\allowbreak{}RTF & 接收飞控的四路电机控制信号，为四台电机提供功率驱动；采用 6S 供电等级时需核对电池、电容和接插件额定值。\\
+飞行控制器 & CUAVv5 & 运行姿态、速度和位置控制，融合 IMU、光流和测距信息，并通过 MAVLink 与 MAVROS 交换状态和命令。\\
+板端计算机 & STM32MP257F-DK & 运行 ROS~2、UWB 驱动、任务状态机、接口桥接和实验日志，不直接承担底层电机换相。\\
+室内定位辅助 & UTF01 光流测距一体模块 & 将光流与距离观测提供给飞控估计器，为室内定高和本地位置输出提供基础。\\
+相对目标传感器 & UWB AOA 基站与 tag & 通过串口向板端输出目标相对距离、方位角和俯仰信息，用于接近目标阶段。\\
+\hline
+\end{tabular}
+}
+\end{table}
+
+硬件控制链可以概括为：任务节点产生期望速度，\texttt{fcu\_bridge} 将其转交 MAVROS，MAVROS 通过 MAVLink 发送到 CUAVv5，飞控根据状态估计完成姿态与电机混控，最后由四合一电调驱动 3115 电机。上层程序不直接输出电机 PWM 或换相信号，这一职责边界保证 ROS 节点异常时仍可由飞控执行模式保护和人工接管。
+
+软件工程采用 ROS~2 colcon 工作空间组织。自定义消息包定义飞控状态、UWB AOA、抓取目标和控制服务；\texttt{fcu\_bridge} 负责 MAVROS 通信；\texttt{uwb\_driver} 负责串口采集与滤波；\texttt{uwb\_navigation} 负责任务状态机与导航策略；\texttt{safety} 提供安全检查预留；\texttt{vision\_bridge} 负责视觉坐标转换和外部感知桥接。
+
+\subsection{总体任务流程}
+系统的主任务遵循 ``先稳定飞行、再相对接近、后末段操作、最后本地返航'' 的原则。无人机起飞后先在安全高度悬停；接近阶段使用 UWB AOA 数据控制水平速度，必要时通过偏航扫描将目标重新置于前向观测扇区；达到目标上方判据后进入稳定悬停并下降到抓取高度；抓取完成后复飞至安全高度，使用飞控本地位置而非 UWB 返航至起飞原点附近；随后等待投放完成，再执行降落。
+
+这种设计明确了传感器职责边界：UWB 只用于目标附近的相对引导，不承担全局地图构建；本地位置用于返航和航点控制；视觉与机械臂用于近距离最终校正和抓取执行。该边界减少了不同定位源之间的功能重叠，也便于逐个模块验证。
+
+\subsection{部署环境与数据接口}
+板端软件运行在 Docker 容器中的 ROS~2 Humble 环境，代码以 colcon 工作空间方式编译和部署。这样可以将板端依赖、ROS 环境和工程源码保持在相对固定的运行容器内，减少直接修改系统环境带来的差异。各功能包之间优先通过消息、服务和参数文件通信，而不是通过互相调用内部函数连接，使 UWB、飞控、视觉和执行器可以分别替换或独立调试。
+
+任务节点订阅 UWB 数据、飞控状态、本地位姿、测距、光流和链路状态，发布速度命令、任务状态和任务事件，并调用飞行命令服务。抓取侧使用独立的命令与完成话题，不与飞控底层协议耦合。该接口设计使上层任务状态机只处理任务语义，底层节点则分别处理串口协议、MAVROS 服务和执行器控制细节。
+
+\begin{center}
+\fbox{\parbox{0.92\textwidth}{\centering
+UWB AOA / 视觉观测 $\longrightarrow$ ROS~2 感知话题 $\longrightarrow$ 任务状态机与安全检查\\[0.3em]
+$\longrightarrow$ \texttt{cmd\_vel} 与 \texttt{FlightCommand} $\longrightarrow$ MAVROS $\longrightarrow$ CUAVv5\\[0.3em]
+$\longrightarrow$ 四合一电调 $\longrightarrow$ 3115 无刷电机\\[0.3em]
+抓取分支：\texttt{grasp\_command} $\longrightarrow$ 执行器 $\longrightarrow$ \texttt{grasp\_done}
+}}
+\end{center}
+
+\begin{table}[htbp]
+\centering
+\caption{任务节点关键 ROS 接口}\label{tab:ros-interfaces}
+{\zihao{5}
+\begin{tabular}{p{4.0cm}p{2.4cm}p{6.7cm}}
+\hline
+接口名称 & 类型 & 数据意义与处理方式 \\
+\hline
+\texttt{uwb\_aoa/data} & 订阅话题 & 接收滤波后的距离、方位角、俯仰角、设备 ID、质量和有效标志。\\
+\texttt{fcu\_state} & 订阅话题 & 聚合连接、模式、解锁、电池、估计器健康度和本地位姿。\\
+\texttt{/mavros/}\allowbreak\texttt{local\_position/}\allowbreak\texttt{pose} & 订阅话题 & 提供返航与航点阶段使用的局部坐标位置。\\
+\texttt{cmd\_vel} & 发布话题 & 输出受限的线速度或偏航速度设定值，由桥接节点转发给飞控。\\
+\texttt{flight\_command} & 服务客户端 & 请求 ARM、DISARM、GUIDED、LOITER、LAND 和 TAKEOFF 等离散飞行操作。\\
+\texttt{test\_mission/state} & 发布话题 & 输出当前状态名，便于终端监测、日志记录和图形化显示。\\
+\texttt{grasp\_command / grasp\_done} & 双向握手 & 将抓取动作与飞行状态机解耦，完成后才允许进入复飞状态。\\
+\hline
+\end{tabular}
+}
+\end{table}
+
+\clearpage
+\section{UWB 数据链路与相对导航}
+\subsection{UWB AOA 数据采集与处理}
+UWB 驱动节点通过串口读取 AOA 模块数据，实机配置使用 \texttt{/dev/ttyUSB0} 和 115200 波特率。节点完成数据帧解析、距离与角度字段提取、信号有效性判断、超时状态发布以及卡尔曼滤波。处理后的结果发布至 \texttt{uwb\_aoa/data}，供导航节点统一订阅。
+
+与直接使用瞬时测量值相比，滤波后的距离和方位角可降低串口采样抖动对速度命令的影响。然而，滤波不能替代观测质量判断：当 \texttt{signal\_valid} 为假、质量为零或信号长时间缺失时，导航程序应停止依赖该观测，并按照等待、恢复或失效保护策略处理。
+
+\subsection{接近控制策略}
+在接近阶段，导航节点根据目标相对距离和方位信息生成水平速度。控制量采用比例项并进行死区、最大速度和变化率限制：当角度误差小于设定死区或水平距离进入捕获半径时，指令逐步减小，避免在目标附近持续摆动；目标较远时速度受最大水平速度限制，目标进入慢速半径后进一步降速。
+
+项目配置中，主任务使用 0.25 m 的 UWB 捕获半径、0.15 m/s 的水平和垂直最大速度、20 Hz 控制频率，并设定 0.2 的速度斜坡率。为处理目标未位于前向扇区的情况，系统设置前向扇区判据和扫描策略：目标超出前向范围时，飞行器以受限偏航角速度原地扫描；目标持续进入锁定扇区后，才重新恢复接近。
+
+\subsection{目标上方判定与下降}
+单基站 UWB 观测在近距离时容易受安装角度、机体姿态和几何退化影响。因此，系统没有只用单一距离阈值判断 ``到达目标上方''，而是结合水平距离、前后/左右估计偏差、机体系仰角、稳定时间和前向扇区条件进行区域判定。满足判据后，无人机先悬停，再下降到配置的抓取高度，避免在横向误差仍较大时直接下降。
+
+对于实际飞行，UWB 安装俯角、前向和侧向符号、方位零偏均需通过静态测量和低速试飞标定。项目将这些参数显式写入配置文件，使传感器坐标修正可以在不修改主状态机逻辑的情况下调整。
+
+\subsection{观测质量与标定方法}
+UWB 数据在进入导航控制前需要经历静态检查和动态检查。静态检查包括串口连接、帧格式、目标 tag 是否在线以及距离角度字段是否处于合理范围；动态检查包括连续帧时间间隔、滤波后变化率、信号质量和有效标志。对于持续缺失或突变的观测，导航节点不应简单沿用上一帧速度，而应先输出零速度、保持高度，并根据超时条件进入恢复或失效保护。
+
+标定时可将无人机固定在安全支架或地面上，令 tag 分别位于机体前方、后方、左右侧和不同高度，记录原始角度与期望方向的关系，确定前向符号、横向符号和方位零偏。随后在小范围低速飞行中验证“目标在左侧时横向速度是否向左、目标在前方时前向速度是否向前”的一致性。该过程应先验证方向，再调整比例系数和死区，避免同时修改多个参数而失去问题定位能力。
+
+\subsection{UWB 消息结构与驱动代码解析}
+自定义消息 \texttt{UwbAoa.msg} 不只传输三个几何量，还包含 anchor ID、tag ID、tag 状态、质量指标和信号有效标志。这样做的原因是导航控制需要区分“测量值为零”和“当前没有可靠测量”两种状态；若只发布距离和角度，上一帧残留值可能被错误地继续用于控制。
+
+\begin{table}[htbp]
+\centering
+\caption{\texttt{UwbAoa} 消息字段解析}\label{tab:uwb-message}
+{\zihao{5}
+\begin{tabular}{p{3.3cm}p{3.1cm}p{6.7cm}}
+\hline
+字段 & 数据类型 & 含义及导航用途 \\
+\hline
+\texttt{distance\_m} & \texttt{float32} & 目标相对距离，原始厘米值除以 100 后得到米制数据。\\
+\texttt{azimuth\_deg} & \texttt{float32} & 有符号方位角，约定负值为左、正值为右，并经卡尔曼滤波。\\
+\texttt{elevation\_deg} & \texttt{float32} & 目标相对俯仰角，用于近距离目标上方区域判断。\\
+\texttt{anchor\_id/tag\_id} & \texttt{uint32} & 标识当前基站和目标标签，防止多设备环境下误跟踪。\\
+\texttt{quality} & \texttt{float32} & 依据数据新鲜度形成的质量值，可用于诊断链路状态。\\
+\texttt{signal\_valid} & \texttt{bool} & 超过设定时间未收到有效帧时置假，导航节点据此停止接近。\\
+\hline
+\end{tabular}
+}
+\end{table}
+
+驱动节点采用独立串口线程读取字节流，并把数据加入累积缓冲区。解析器先搜索命令码 \texttt{0x2001}，确认缓冲区中存在完整帧，再计算异或校验；校验失败时只丢弃一个字节并继续寻找下一帧，而不是清空整个缓冲区。这种增量重同步方式能够处理串口从帧中间开始读取、瞬时丢字节或粘包等情况。其核心逻辑可概括为：
+
+\begin{verbatim}
+while (accum.size() >= AOA_FRAME_LEN) {
+  frame_start = findFrameStart(accum);
+  if (frame_start is invalid) keep the possible frame tail;
+  if (xor_check_failed) discard one byte and rescan;
+  if (parseFrame(data, frame)) processFrame(frame);
+}
+\end{verbatim}
+
+解析成功后，距离和方位角分别进入一维卡尔曼滤波器。对于距离超出 \texttt{max\_range\_m}、长时间没有新帧或串口无法打开的情况，节点仍保持运行并发布无效状态，使上层状态机能够区分“节点退出”和“传感器暂不可用”。
+
+\subsection{速度控制量形成}
+UWB 相对观测先转换为机体系水平误差，再通过比例控制、死区和饱和器生成速度。简化表达为
+\[
+v_x=\mathrm{sat}(k_p e_x,\,v_{\max}),\qquad
+v_y=\mathrm{sat}(k_p e_y,\,v_{\max}).
+\]
+在目标进入慢速半径后，最大速度从正常接近值降至较小值；在中心捕获区域内，控制器要求误差连续稳定一段时间才允许状态切换。配置中的 \texttt{velocity\_slew\_rate} 对连续控制周期之间的速度变化再做限制，减少突变指令对机体姿态和 UWB 观测的二次扰动。
+
+\clearpage
+\section{飞控桥接与任务状态机}
+\subsection{MAVROS 飞控桥接}
+飞控桥接层订阅 MAVROS 的飞控状态、电池、本地位置、测距和光流相关信息，并发布项目统一的飞控状态消息。命令侧通过服务或话题向飞控发出解锁、模式切换、起飞、速度设定值和降落请求。桥接节点在转发速度命令前检查飞控连接、解锁状态、估计器状态和允许模式；当不满足条件时主动发布零速度设定值，避免上层异常指令直接传递至飞控。
+
+室内飞行依赖光流和测距提供的本地位置估计。系统显式监测 \texttt{/mavros/}\allowbreak\texttt{local\_position/}\allowbreak\texttt{pose} 的新鲜度，并在任务开始时记录本地原点。抓取后的返航阶段采用本地位置闭环返回原点附近，而不是继续用 UWB 反向寻找 tag，从而避免目标抓取后 tag 不再可见或几何关系改变造成的返航不确定性。
+
+\subsection{任务状态机设计}
+完整任务状态机的核心状态如下：
+\begin{center}
+\texttt{INIT $\rightarrow$ ARM $\rightarrow$ TAKEOFF $\rightarrow$ HOVER\_TAKEOFF $\rightarrow$ MOVE\_ABOVE $\rightarrow$ HOVER\_ABOVE $\rightarrow$ DESCEND $\rightarrow$ HOVER\_FINAL $\rightarrow$ WAIT\_GRASP $\rightarrow$ CLIMB $\rightarrow$ HOVER\_CLIMB $\rightarrow$ RETURN $\rightarrow$ HOVER\_RETURN $\rightarrow$ WAIT\_DROP $\rightarrow$ LAND $\rightarrow$ DONE}
+\end{center}
+
+其中，\texttt{MOVE\_ABOVE} 使用 UWB 数据生成接近速度，\texttt{WAIT\_GRASP} 和 \texttt{WAIT\_DROP} 通过消息握手等待外部执行模块完成；\texttt{RETURN} 使用本地位置控制回到起飞点；\texttt{LAND} 调用降落流程并依据相对高度和稳定时间确认完成。状态机还定义了 \texttt{PAUSED\_MANUAL}、\texttt{RECOVERING} 和 \texttt{FAILSAFE} 等异常状态，分别对应人工接管、飞控链路恢复和严重故障保护。
+
+\subsection{分级任务入口}
+工程提供了多个分级入口：纯软件 \texttt{mock\_full} 用于状态机和 ROS 链路测试；\texttt{bench\_velocity} 在不上桨叶条件下验证速度指令链路；低高度起飞--前移--降落、航点返航--降落任务用于检查飞控和本地位置；\texttt{uwb\_approach\_land} 用于验证 UWB 接近与降落；完整入口串联 UWB 接近、抓取等待、返航、投放等待和降落。
+
+这种由 mock、台架到低高度实飞的分级策略，是系统安全验证的重要组成部分。任何新增的视觉、机械臂或抓取功能都应先在隔离入口中测试，不应直接修改已经稳定的主任务流程。
+
+\subsection{状态转换条件与异常恢复}
+状态机的每一次转换均应同时考虑目标条件与时间条件。例如，起飞状态不仅等待起飞命令发送成功，还要等待相对高度进入容差范围；UWB 接近状态不仅判断目标进入捕获区域，也要求该判据保持规定稳定时间；返航状态以本地位置与起点之间的距离小于容差为主要条件，并设置最长执行时间防止持续漂移。通过把“达到阈值”和“保持稳定”组合起来，可以降低瞬时噪声导致误切换的概率。
+
+当飞控模式离开允许自动控制模式时，任务进入人工暂停状态，停止自主速度输出；当链路短暂丢失时，任务进入恢复状态，待消息恢复并满足等待时间后返回最近的安全悬停阶段；当低电量、恢复超时或关键传感器长时间无效时，任务进入失效保护，持续输出安全命令并按策略尝试降落。异常状态和正常状态一样需要写入日志，以便检验保护逻辑是否按照预期触发。
+
+\subsection{飞控聚合状态接口解析}
+\texttt{fcu\_state\_node} 将 MAVROS 的多个底层话题聚合为一个 \texttt{FcuState} 消息。与任务节点分别订阅电池、姿态、GPS、估计器和本地位置相比，聚合接口可以统一时间尺度和字段命名，并把“估计器是否可用于自动飞行”的判断放在桥接层完成。
+
+\begin{table}[htbp]
+\centering
+\caption{\texttt{FcuState} 关键字段及使用位置}\label{tab:fcu-state}
+{\zihao{5}
+\begin{tabular}{p{3.2cm}p{4.1cm}p{5.9cm}}
+\hline
+字段组 & 典型字段 & 状态机中的用途 \\
+\hline
+连接与模式 & \texttt{connected, mode, armed} & 判断飞控是否在线、当前是否允许发送自动速度以及是否已经解锁。\\
+人工输入 & \texttt{manual\_input} & 检测遥控器或地面站接管，触发 \texttt{PAUSED\_MANUAL}。\\
+电池 & \texttt{voltage, remaining, current} & 执行任务前检查，并在低于阈值时进入失效保护。\\
+估计器 & 姿态、水平/垂直速度与位置状态 & 组合形成 \texttt{estimator\_ok}，阻止估计器异常时解锁或转发速度。\\
+本地位姿 & \texttt{local\_x/y/z, roll/pitch/yaw} & 记录起飞原点、判断起飞高度、执行航点与返航控制。\\
+\hline
+\end{tabular}
+}
+\end{table}
+
+链路监测节点另外检查 \texttt{/mavros/}\allowbreak\texttt{local\_position/}\allowbreak\texttt{pose} 的时间新鲜度，默认以 0.5 s 为超时参考，并通过连续丢失/连续恢复计数避免单帧延迟造成状态抖动。该状态发布为 \texttt{fcu\_link/status}，任务节点据此进入 \texttt{RECOVERING} 或恢复正常悬停。
+
+\subsection{飞行命令服务与速度通道}
+离散飞行操作使用 \texttt{FlightCommand.srv}，连续运动则使用 \texttt{cmd\_vel}。二者分离后，起飞、降落、模式切换等需要确认结果的操作可以通过服务响应返回成功标志和文本说明；20 Hz 更新的速度设定值不需要为每一帧建立服务往返，从而保持控制链简洁。
+
+\begin{verbatim}
+CMD_ARM=0       CMD_DISARM=1
+CMD_MODE_GUIDED=2
+CMD_MODE_LOITER=3
+CMD_MODE_LAND=4
+CMD_TAKEOFF=5   # param = target altitude (m)
+---
+bool success
+string message
+\end{verbatim}
+
+\texttt{flight\_commander\_node} 在执行命令前检查飞控连接和状态，并通过 MAVROS 服务完成模式与起降操作；速度转发路径则检查 \texttt{armed}、允许的自动模式和估计器状态。任何条件不满足时，节点不透明地“继续发送旧命令”，而是发布零速度并输出警告。这一设计将最后一道飞行安全门放在距离飞控最近的桥接节点中。
+
+\clearpage
+\section{抓取、视觉接口与安全控制}
+\subsection{抓取与投放握手接口}
+导航系统不直接假设机械臂一定完成抓取，而是通过 \texttt{grasp\_command}、\texttt{grasp\_done}、\texttt{drop\_command} 和 \texttt{drop\_done} 等话题建立异步握手。无人机到达抓取高度后进入 \texttt{WAIT\_GRASP}，外部执行器收到命令并完成动作后发布完成信号，状态机才允许复飞；投放过程采用同样逻辑。
+
+该设计使飞行任务与执行机构解耦。机械臂控制器可以独立处理关节限位、夹爪状态、视觉确认和故障反馈，飞行状态机只关心动作是否在规定时间内成功完成。若等待超过抓取或投放超时，系统应进入预定义的安全处理分支，而不是继续执行后续阶段。
+
+\subsection{视觉坐标转换接口}
+视觉桥接包预留了目标检测结果和目标偏移话题，并通过配置文件定义坐标变换关系。视觉模块的作用是当无人机已由 UWB 引导至目标附近后，进一步提供近距离横向偏差或目标位姿信息。由于本报告对应的仓库将视觉侧作为可插拔模块，当前结论应表述为 ``已完成接口与坐标转换基础''，而非宣称已经完成全部视觉抓取闭环。
+
+后续集成应明确相机坐标、机体坐标、UWB 安装坐标和抓取工具坐标之间的外参；同时应在静态台架上先验证视觉偏差方向与速度指令方向的一致性，再进入低速、低高度飞行试验。
+
+\subsection{安全策略}
+系统安全控制覆盖任务前检查、任务中限幅和异常状态处理三个层面。任务前要求 UWB、本地位置、飞控链路和必要传感器在规定超时时间内有效；任务中限制高度、水平/垂直速度、速度变化率、任务半径和接近超时；异常时根据人工模式切换、低电量、UWB 丢失、链路断开或恢复超时进入暂停、恢复或失效保护。
+
+完整任务配置中，起飞高度设置为 0.75 m，抓取下降高度设置为 0.55 m，低电量阈值为 20\%，UWB 信号超时为 3 s，本地位置超时为 1 s，任务软/硬半径分别为 2.0 m 和 2.5 m。这些数值是当前保守测试配置，实际使用时仍需根据场地、桨叶防护、负载、传感器精度和飞控参数重新评估。
+
+\subsection{抓取阶段的飞行稳定性要求}
+抓取并非单独的机械臂动作，而是飞行器、目标、视觉和执行机构同时耦合的过程。无人机在进入抓取等待阶段前应完成短时间悬停，确保高度、水平位置和偏航变化均处于可接受范围；执行机构运动期间应限制大幅速度指令，避免因桨流、负载变化或夹爪接触使目标偏移。抓取完成后，应先复飞到安全高度，再开始返航，不能在低高度直接横向移动。
+
+若执行器报告抓取失败、夹爪未闭合或视觉确认不可靠，状态机应保留明确的失败事件并进入安全悬停或人工接管，而不应把失败默认为完成。对于真实负载任务，还需要重新评估起飞重量、重心偏移、电池余量和返航速度上限，使飞行控制参数与空载试验保持一致。
+
+\subsection{视觉桥接代码接口}
+视觉桥接提供本地感知节点和外部计算单元桥接两种入口。\texttt{jetson\_bridge\_}\allowbreak\texttt{node.py} 默认监听 UDP 5005 端口，将外部设备发送的 JSON 检测结果转换为 \texttt{geometry\_msgs/}\allowbreak\texttt{PointStamped}，发布到 \texttt{vision/}\allowbreak\texttt{target\_offset}；同时保留原始 JSON 字符串话题 \texttt{vision/}\allowbreak\texttt{jetson\_detections}，便于调试检测类别、置信度和时间戳。若超过 3 s 没有收到数据，应将视觉状态视为过期，而不是持续使用最后一次目标偏移。
+
+\begin{table}[htbp]
+\centering
+\caption{视觉与抓取接口的分层关系}\label{tab:vision-grasp}
+{\zihao{5}
+\begin{tabular}{p{3.8cm}p{3.4cm}p{6.0cm}}
+\hline
+接口 & 方向 & 解析与使用原则 \\
+\hline
+\texttt{vision/}\allowbreak\texttt{target\_offset} & 视觉到导航/机械臂 & 使用带坐标系和时间戳的目标偏移，进入控制前完成相机到机体或工具坐标变换。\\
+\texttt{vision/}\allowbreak\texttt{jetson\_detections} & 外部计算到日志 & 保留原始 JSON，主要用于对照检测结果和桥接后的几何消息。\\
+\texttt{grasp\_command} & 导航到执行器 & 仅在低位悬停稳定后发布，表示允许执行抓取动作。\\
+\texttt{grasp\_done} & 执行器到导航 & 必须明确表达成功完成；失败与超时不能伪装为成功。\\
+\texttt{drop\_command/}\allowbreak\texttt{drop\_done} & 双向 & 到达返航投放区后使用，与抓取接口保持独立，便于分别调试。\\
+\hline
+\end{tabular}
+}
+\end{table}
+
+视觉坐标不能直接等同于飞行速度方向。例如相机光学坐标通常以右、下、前为轴，而飞控机体系可能采用前、右、下或 ROS ENU 约定。接口层必须根据安装姿态进行轴交换、符号修正和平移补偿，并在消息头中保留正确的 \texttt{frame\_id}。如果坐标方向尚未标定，视觉数据只能用于显示和记录，不应直接接管飞行控制。
+
+\subsection{风险分级与控制措施}
+不同异常对系统的影响并不相同，因此安全策略应按严重程度采用不同处理方式。可恢复的短时 UWB 丢帧适合保持悬停并等待；本地位置长时间失效、低电量或飞控断连则需要尽快进入降落或人工接管；抓取未完成但飞行状态正常时，可在低位悬停等待或取消任务，不必立即执行与飞控链路故障相同的处理。
+
+\begin{table}[htbp]
+\centering
+\caption{典型异常与建议动作}\label{tab:risk-actions}
+{\zihao{5}
+\begin{tabular}{p{3.5cm}p{3.2cm}p{6.4cm}}
+\hline
+异常事件 & 风险等级 & 系统动作 \\
+\hline
+UWB 短时丢帧 & 中 & 停止接近速度、保持高度，信号恢复并稳定后继续。\\
+目标持续不在前向扇区 & 中 & 进入限速偏航扫描；超过扫描超时后取消接近或人工处理。\\
+本地位置超时 & 高 & 禁止航点和返航速度，进入恢复状态；无法恢复时执行保护降落。\\
+低电量 & 高 & 终止抓取流程，优先返航或就地降落，避免在低位继续等待。\\
+人工模式切换 & 最高优先级 & 立即暂停自主命令并保持人工控制权，只有满足恢复条件后才重新进入自动阶段。\\
+抓取超时 & 中 & 保持稳定悬停、记录失败事件，根据剩余电量决定重试、取消或复飞。\\
+\hline
+\end{tabular}
+}
+\end{table}
+
+\clearpage
+\section{测试结果、问题与改进方向}
+\subsection{当前集成结果}
+从软件结构和任务配置可以确认，项目已建立以下能力：第一，UWB AOA 串口采集、滤波和统一话题发布链路；第二，MAVROS 到项目飞控状态和速度命令的桥接链路；第三，围绕起飞、接近、下降、返航和降落的有限状态机；第四，mock、台架和多种实飞任务入口；第五，抓取、投放和视觉模块的解耦接口；第六，针对飞控模式、链路新鲜度、电量、信号缺失和任务超时的安全限制。
+
+完整任务配置已经把抓取/投放设置为非模拟模式，并提供超时、命令话题和完成话题，因此具备与真实机械臂联调的接口基础。与此同时，接口存在并不等于已完成真实抓取成功率验证；真实执行器、视觉精定位和飞行扰动耦合仍需要通过台架和逐级实飞获得实验数据。
+
+\subsection{分级实验设计}
+项目不是通过一个 launch 文件覆盖所有场景，而是为不同风险等级提供独立任务模式。这样既能缩小故障定位范围，也能避免在尚未验证底层链路时直接进入 UWB 接近和抓取动作。
+
+\begin{table}[htbp]
+\centering
+\caption{分级任务模式与验收重点}\label{tab:test-modes}
+{\zihao{5}
+\begin{tabular}{p{4.0cm}p{4.0cm}p{5.2cm}}
+\hline
+任务模式 & 硬件条件 & 主要验收内容 \\
+\hline
+\texttt{mock\_full} & 无真实硬件 & 检查全部正常状态是否能够按时序转换，话题和服务名称是否一致。\\
+\texttt{bench\_velocity} & 飞控连接、拆除桨叶 & 验证 ARM、速度设定值、零速度、DISARM 和传感器在线监测。\\
+低高度起飞/悬停/降落 & 完整动力系统与安全场地 & 验证 CUAVv5、3115 电机、四合一电调、光流测距和基本起降稳定性。\\
+航点往返 & 可靠本地位置 & 验证起飞原点记录、水平速度方向、位置容差和返航停止条件。\\
+\texttt{uwb\_approach\_land} & UWB 与低高度飞行条件 & 验证方位符号、扫描、慢速区、捕获判据和信号丢失处理。\\
+抓取返航完整任务 & 视觉/执行器接口完成 & 验证抓取握手、负载复飞、本地位置返航、投放和最终降落。\\
+\hline
+\end{tabular}
+}
+\end{table}
+
+以完整任务配置为例，起飞高度为 0.75 m，下降抓取高度为 0.55 m，水平最大速度限制为 0.15 m/s，目标附近慢速上限进一步降至 0.04 m/s，控制周期为 20 Hz。上述参数体现了“先以低高度、低速度验证链路”的思路；当平台重量、电机桨叶组合或 UWB 安装发生变化时，应重新完成台架与低高度任务，不能直接沿用旧参数执行完整流程。
+
+\subsection{存在问题}
+当前系统仍面临若干工程问题。其一，单基站 UWB AOA 的角度精度会受安装姿态、机体遮挡、多径和目标 tag 方向影响，近距离几何条件下需要更严格的稳定判据。其二，飞控本地位置依赖光流、测距和地面纹理条件，返航精度应通过多次重复试验评估。其三，视觉、UWB、飞控和机械臂分别具有不同坐标系与延迟，必须进行时间同步和外参标定。其四，抓取动作会改变机体载荷和重心，可能影响悬停稳定性及返航控制。其五，完整任务中的异常分支、抓取失败回退和人工接管恢复仍需使用真实日志进行覆盖测试。
+
+\subsection{后续改进方向}
+\begin{enumerate}
+  \item 建立 UWB 安装外参、方位零偏和距离偏差的标定流程，并记录不同姿态和距离下的误差；
+  \item 使用视觉或 AprilTag 在近距离提供外部测量，对 UWB 捕获区域内的最终横向偏差进行校正；
+  \item 完善抓取模块状态定义，增加抓取成功、失败、超时和安全释放等可追踪事件；
+  \item 将飞行、UWB、视觉和执行器日志统一记录，分析任务状态、目标误差和控制输出之间的关系；
+  \item 在保留现有稳定主线的前提下，通过独立 launch 文件开展机械臂联调，按台架、无桨、低高度和完整任务逐级验证。
+\end{enumerate}
+
+\subsection{建议的实验记录格式}
+为使不同阶段的试验能够比较，建议每次运行均记录任务编号、软件版本、配置文件版本、场地条件、起飞重量、UWB 安装姿态、目标 tag 位置、任务模式和人工接管情况。运行日志中应至少包含状态时间线、UWB 原始/滤波数据、本地位姿、速度设定值、飞控模式、电池和抓取握手结果。对异常试验应另行记录异常发生时刻、系统动作和人工处理方式。
+
+在数据分析阶段，可将目标相对观测、速度命令和本地轨迹绘制在同一时间轴上，检查控制方向是否正确、是否存在速度饱和、是否因信号丢失频繁进入恢复状态，以及返航时本地位置是否出现明显漂移。这样的记录方式能够将“任务成功或失败”的结论转化为可定位、可复现的工程证据。
+
+\subsection{代码级验收要点}
+接口验收应覆盖“有没有消息、消息是否正确、消息是否及时、异常后如何动作”四个层次。以 UWB 为例，终端能看到话题并不代表可用于飞行，还要核对 ID、距离单位、角度符号、质量和 \texttt{signal\_valid}；以飞控为例，能够读取 \texttt{/mavros/state} 不代表速度通道已建立，还需要验证 GUIDED 模式、解锁状态、估计器健康和 \texttt{cmd\_vel} 转发条件。
+
+推荐在每个实验阶段保留明确的通过条件。台架速度测试应能观察到设定的上升、保持、下降、归零序列，并确认电机未安装桨叶；低高度起降应确认相对高度达到容差后才进入悬停；UWB 接近应确认目标丢失时水平命令归零；完整抓取任务应确认没有收到 \texttt{grasp\_done} 时状态机不会提前复飞。只有这些条件都满足，才可以把“程序运行结束”解释为任务链路验证成功。
+
+\clearpage
+\section{总结与展望}
+本研究围绕 UWB 引导的室内无人机抓取任务，完成了从传感器数据采集、飞控桥接、任务编排到抓取接口和安全约束的系统集成。系统以 STM32MP257F-DK 和 ROS~2 为板端软件基础，以 CUAVv5 和 MAVROS 负责飞行控制，以光流测距提供本地位置估计，以 UWB AOA 支持目标相对接近，并以视觉与机械臂接口支撑后续末段抓取。
+
+实验工程已形成多级测试入口和完整任务状态机，能够把 ``起飞--UWB 接近--下降等待--复飞--本地返航--投放等待--降落'' 表达为可配置、可监测的控制流程。其主要价值在于明确不同传感器与执行模块的职责边界，并通过速度、半径、超时、链路和人工接管约束提高系统联调的可控性。
+
+从硬件链路看，3115 无刷电机和好盈 XRotor-65A 四合一电调构成飞行执行层，CUAVv5 负责底层姿态与位置控制，STM32MP257F-DK 则承担任务决策和传感器接口。该分层使 ROS~2 节点不直接控制电机换相，而是通过 MAVROS 与飞控交换高层飞行意图，保留了飞控自身的估计器、模式保护和遥控器接管能力。
+
+从软件链路看，自定义消息把 UWB 有效性、飞控健康度和抓取目标组织成稳定接口；\texttt{FlightCommand} 服务处理离散操作，\texttt{cmd\_vel} 处理连续速度，抓取与投放采用独立握手。UWB 驱动中的缓冲区扫描、异或校验、帧重同步和超时发布，以及导航节点中的速度限幅、稳定时间和异常状态，共同构成了从原始串口数据到飞行命令的可解释处理链。
+
+本研究仍需强调实验结论的边界：代码和配置证明系统具备完整集成结构，并不自动等价于真实抓取闭环已经达到稳定成功率。视觉外参、UWB 近距离误差、负载重心变化、电机桨叶匹配和抓取失败恢复，需要通过可重复的真实数据继续验证。后续报告中应将确认过的实测结果、尚未实测的接口能力和基于设计的推断分开表述。
+
+后续研究应以真实飞行日志和标定数据为依据，逐步完善 UWB 近距鲁棒性、视觉精定位、抓取成功确认、载荷扰动补偿和故障回退策略。完成这些工作后，系统可进一步用于室内目标搬运、自动投放、库存盘点辅助和多传感器融合控制等研究。
+
+\end{document}

@@ -1,0 +1,36 @@
+{
+  "timestamp_local": "2026-07-08T11:55:30+08:00",
+  "label": "top_home_approx",
+  "port": "COM19",
+  "baudrate": 9600,
+  "read_only": true,
+  "command_byte": "0x15",
+  "tx_packet_hex": "55 55 06 15 03 01 02 03",
+  "notes": [
+    "User manually moved the three arm servos to an approximate top pose.",
+    "The 0x03 byte in the packet payload is the count/id value, not the command byte.",
+    "No motion command was sent during this capture.",
+    "Raw values are servo-local encoder coordinates and are not expected to match just because the mechanism is symmetric."
+  ],
+  "samples": {
+    "1": [434, 435, 435, 434, 434, 435, 435],
+    "2": [-2, -2, -2, -2, -2, -2, -2],
+    "3": [1021, 1021, 1021, 1021, 1021, 1021, 1021]
+  },
+  "median_raw": {
+    "1": 435,
+    "2": -2,
+    "3": 1021
+  },
+  "spread_ticks": {
+    "1": 1,
+    "2": 0,
+    "3": 0
+  },
+  "approx_0_240deg": {
+    "1": 104.4,
+    "2": -0.48,
+    "3": 245.04
+  },
+  "config_action": "Snapshot only. Do not use as home_raw or motion limit until the full structure calibration defines the safe mapping."
+}

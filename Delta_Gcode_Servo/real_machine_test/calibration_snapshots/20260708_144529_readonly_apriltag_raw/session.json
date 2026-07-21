@@ -1,0 +1,36 @@
+{
+  "created_iso": "2026-07-08T14:45:29",
+  "run_id": "20260708_144529_readonly_apriltag_raw",
+  "mode": "read_only_windows_com19_plus_jetson_apriltag",
+  "safety": {
+    "servo_command": "0x15 read position only",
+    "motion_command_0x03": "blocked by make_read_packet",
+    "arm_servos": [
+      1,
+      2,
+      3
+    ],
+    "landing_gear_servos": [
+      4,
+      5,
+      6
+    ]
+  },
+  "serial": {
+    "port": "COM19",
+    "baudrate": 9600,
+    "tx_hex": "55 55 06 15 03 01 02 03",
+    "command_byte": "0x15"
+  },
+  "jetson": {
+    "host": "192.168.1.80",
+    "user": "nvidia",
+    "remote_apriltag_json": "/home/nvidia/Desktop/yolo_fisheye_calibration_jetson/output/apriltag_latest_jetson.json"
+  },
+  "vision": {
+    "hand_tag_id": 3,
+    "calibration": "C:\\Users\\hanjuncheng\\Desktop\\78arm\\Dual_Camera_HandEye\\output\\calibration_result.json",
+    "imu_snapshot": "C:\\Users\\hanjuncheng\\Desktop\\78arm\\IMU\\wt61c_latest.json",
+    "fresh_ms": 750.0
+  }
+}

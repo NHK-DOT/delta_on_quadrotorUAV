@@ -1,0 +1,50 @@
+{
+  "timestamp_unix": 1782176769.6517007,
+  "model": "opencv_fisheye",
+  "camera_role": "apriltag_base_camera_fullfov",
+  "capture_mode": "3k_fullfov_downsample_1280x960_offline_images",
+  "rms_reprojection_error": 0.7355541557846461,
+  "image_size": {
+    "width": 1280,
+    "height": 960
+  },
+  "pattern_size": {
+    "cols": 10,
+    "rows": 7
+  },
+  "square_size_m": 0.02,
+  "camera_matrix": [
+    [
+      614.7816172528,
+      0.0,
+      642.7499420257618
+    ],
+    [
+      0.0,
+      609.4518528248342,
+      477.310108155043
+    ],
+    [
+      0.0,
+      0.0,
+      1.0
+    ]
+  ],
+  "dist_coeffs": [
+    -0.02839103578608048,
+    -0.001139215360227735,
+    -0.012545641264808493,
+    0.006139900474135181
+  ],
+  "num_samples": 32,
+  "source_image_dir": "calibration/raw_apriltag_fullfov_1280x960",
+  "valid_dir": "calibration/valid_apriltag_fullfov_1280x960",
+  "detection_counts": {
+    "ok": 32,
+    "no": 0,
+    "timeout": 68,
+    "bad": 0,
+    "err": 0,
+    "empty": 0
+  }
+}

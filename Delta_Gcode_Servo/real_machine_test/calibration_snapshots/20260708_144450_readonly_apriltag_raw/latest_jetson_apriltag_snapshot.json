@@ -1,0 +1,40 @@
+{
+  "timestamp_unix": 1783493095.213124,
+  "camera": {
+    "source": "csi_nvargus_nvapriltags_gpu",
+    "sensor_id": 0,
+    "sensor_mode": 0,
+    "sensor_width": 3264,
+    "sensor_height": 2464,
+    "sensor_fps_request": 21,
+    "nvvidconv_interpolation": -1,
+    "processing_width": 1280,
+    "processing_height": 960,
+    "pixel_mode": "BGR_gray_blur_gamma0.70_to_BGRA_cuda",
+    "detector_preprocess": "gray_blur_gamma07"
+  },
+  "tag_family": "tag36h11",
+  "tag_size_m": 0.0305,
+  "estimation_mode": "nvidia_nvapriltags_gpu_pinhole_intrinsics",
+  "implementation": "nvapriltags_gpu_fullfov_downsample",
+  "calibration": {
+    "loaded": true,
+    "file": "/home/nvidia/Desktop/yolo_fisheye_calibration_jetson/calibration/usable_3k_downsample_1280x960/apriltag_fullfov_1280x960_intrinsics.json",
+    "fx": 614.781616,
+    "fy": 609.451843,
+    "cx": 642.749939,
+    "cy": 477.31012
+  },
+  "processing_frame": {
+    "width": 1280,
+    "height": 960
+  },
+  "timing": {
+    "display_fps": 20.944244,
+    "read_ms": 15.486219,
+    "preprocess_ms": 2.535457,
+    "copy_ms": 1.583797,
+    "detector_ms": 29.866569
+  },
+  "detections": []
+}

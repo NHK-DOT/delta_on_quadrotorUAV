@@ -8,6 +8,9 @@ hand-eye vision experiments, and the current real-machine Delta arm controller.
 License: GNU GPL v3.0. See [LICENSE](LICENSE). Upstream MIT notices are kept in
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
+Hardware, electronics, control-board, CAD, and selected debugging assets are
+indexed in [docs/HARDWARE_ASSET_INDEX.md](docs/HARDWARE_ASSET_INDEX.md).
+
 ## STM32MP257 UWB Flight-Control Integration
 
 The current competition system uses the **STM32MP257F-DK as the main onboard
@@ -53,22 +56,22 @@ sensor stack.
 
 | Full platform integration | 45-degree base mount | Power distribution and harness |
 | --- | --- | --- |
-| <img src="images/autostepper_beta_outlook.jpg" alt="Full UAV integration view" width="360"><br>Current full-platform integration view. | <img src="images/45angle_base_on_drone.jpg" alt="UAV-mounted arm at a 45 degree angle" width="360"><br>Arm mounted at a 45 degree angle on the drone platform. | <img src="images/PDBboard_and_wire.jpg" alt="Power distribution board and wiring harness" width="360"><br>Power distribution board and wiring harness during integration. |
-| <img src="images/autostepper_beta.jpg" alt="Main control stack on the platform" width="360"><br>Main control stack, sensor wiring, and mounting frame. | <img src="images/uwb%20beacon.jpg" alt="UWB beacon module" width="360"><br>UWB beacon module and wiring. |  |
+| <img src="images/airframe/autostepper_beta_outlook.jpg" alt="Full UAV integration view" width="360"><br>Current full-platform integration view. | <img src="images/airframe/45angle_base_on_drone.jpg" alt="UAV-mounted arm at a 45 degree angle" width="360"><br>Arm mounted at a 45 degree angle on the drone platform. | <img src="images/electronics/PDBboard_and_wire.jpg" alt="Power distribution board and wiring harness" width="360"><br>Power distribution board and wiring harness during integration. |
+| <img src="images/airframe/autostepper_beta.jpg" alt="Main control stack on the platform" width="360"><br>Main control stack, sensor wiring, and mounting frame. | <img src="images/electronics/uwb%20beacon.jpg" alt="UWB beacon module" width="360"><br>UWB beacon module and wiring. |  |
 
 ## Second Airframe Photos
 
 | Airframe overview | Assembly progress | Arm and propeller overview |
 | --- | --- | --- |
-| <img src="images/贰号机一览.jpg" alt="Second airframe overview" width="230"><br>Second UAV airframe overview. | <img src="images/贰号机装配中.jpg" alt="Second airframe assembly" width="230"><br>Second airframe during assembly. | <img src="images/贰号机机臂桨叶一览1053.jpg" alt="Second airframe arm and propeller overview" width="230"><br>Arm and propeller overview. |
-| <img src="images/贰号机装配中2.jpg" alt="Second airframe assembly detail" width="230"><br>Second airframe assembly detail. | <img src="images/非机械臂夹取贰号机.jpg" alt="Second airframe handling" width="230"><br>Second airframe handling view. |  |
+| <img src="images/airframe/贰号机一览.jpg" alt="Second airframe overview" width="230"><br>Second UAV airframe overview. | <img src="images/airframe/贰号机装配中.jpg" alt="Second airframe assembly" width="230"><br>Second airframe during assembly. | <img src="images/airframe/贰号机机臂桨叶一览1053.jpg" alt="Second airframe arm and propeller overview" width="230"><br>Arm and propeller overview. |
+| <img src="images/airframe/贰号机装配中2.jpg" alt="Second airframe assembly detail" width="230"><br>Second airframe assembly detail. | <img src="images/airframe/非机械臂夹取贰号机.jpg" alt="Second airframe handling" width="230"><br>Second airframe handling view. |  |
 
 ## System Components
 
 | Flight and compute | Vision and arm | Mechanical integration |
 | --- | --- | --- |
-| <img src="images/257.png" alt="STM32MP257 controller" width="230"><br>STM32MP257 mission-control board. | <img src="images/NX.png" alt="Jetson Xavier NX" width="230"><br>Jetson Xavier NX perception and arm computer. | <img src="images/飞控cuav5.png" alt="CUAV V5 flight controller" width="230"><br>CUAV V5 flight controller. |
-| <img src="images/yolo.png" alt="Wrench YOLO detection" width="230"><br>Wrench YOLO perception output. | <img src="images/机械臂.png" alt="Delta arm" width="230"><br>Delta-arm integration. | <img src="images/双目相机架.png" alt="Stereo camera mount" width="230"><br>Stereo camera mounting hardware. |
+| <img src="images/electronics/257.png" alt="STM32MP257 controller" width="230"><br>STM32MP257 mission-control board. | <img src="images/electronics/NX.png" alt="Jetson Xavier NX" width="230"><br>Jetson Xavier NX perception and arm computer. | <img src="images/electronics/飞控cuav5.png" alt="CUAV V5 flight controller" width="230"><br>CUAV V5 flight controller. |
+| <img src="images/debug/yolo.png" alt="Wrench YOLO detection" width="230"><br>Wrench YOLO perception output. | <img src="images/arm/机械臂.png" alt="Delta arm" width="230"><br>Delta-arm integration. | <img src="images/arm/双目相机架.png" alt="Stereo camera mount" width="230"><br>Stereo camera mounting hardware. |
 
 Current Jetson field mainline:
 `Delta_Gcode_Servo/real_machine_test/jetson_py36/run_sampler_py36_jetson.sh`.
@@ -138,12 +141,11 @@ pygame or SDL mappings.
 
 ## Arm Photos and Models
 
-| Prototype frame and electronics | Prototype held for linkage inspection |
+| Integrated Delta arm | End effector and linkage |
 | --- | --- |
-| <img src="images/1.jpg" alt="Delta arm prototype frame and electronics" width="420"><br>Prototype frame, links, control board, and onboard wiring. | <img src="images/884b798faf516a24bb9bb0af58b4d616.jpg" alt="Delta arm prototype held for linkage inspection" width="420"><br>Assembled lightweight delta arm during manual inspection. |
-| <img src="images/9b5124927711c6a065732a5374151702.jpg" alt="Delta arm linkage and revised printed part" width="420"><br>Linkage/end-effector side with revised printed part installed. | <img src="images/0cb198a8a6041f6031b36bc2a0e89fff.jpg" alt="Revised CAD link mount concept" width="420"><br>Revised CAD concept for a link/mount part. |
-| <img src="images/ed630aaf206b2373b458c409e840b7ce.jpg" alt="Revised end-effector plate CAD" width="420"><br>Revised end-effector plate and bearing/link mounting geometry. | <img src="images/bc97d03f7ef3bbd601feaae3bde8008b.jpg" alt="Revised plate model for print or CNC" width="420"><br>Flat plate model suitable for 3D printing or CNC after export. |
-| <img src="images/6e8c580ad37580d7e83ef4b96af3ac27.jpg" alt="Revised link bracket CAD" width="420"><br>Revised single bracket model. | <img src="images/6ffa0ed538995f449159233e0b68eb6e.jpg" alt="3D print slicer layout for revised parts" width="420"><br>3D print slicer layout for revised plates, links, and brackets. |
+| <img src="images/arm/机械臂在架上.jpg" alt="Delta arm on frame" width="420"><br>Installed Delta arm and mechanical frame. | <img src="images/arm/末端执行机构.jpg" alt="Delta arm end effector" width="420"><br>Current end-effector mechanism. |
+| <img src="images/arm/Delta驱动%20幻尔xarm1.6.jpg" alt="Delta arm drive hardware" width="420"><br>Delta-arm servo-drive hardware. | <img src="images/arm/末端执行机构轴承夹具.jpg" alt="End effector bearing fixture" width="420"><br>Bearing and end-effector fixture detail. |
+| <img src="images/arm/机械臂仿真.png" alt="Delta arm simulation" width="420"><br>Mechanical simulation view. | <img src="images/debug/调试.jpg" alt="Delta arm debug session" width="420"><br>Selected hardware debugging record. |
 
 ## Mechanical Model Files
 

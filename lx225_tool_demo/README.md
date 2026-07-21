@@ -128,16 +128,22 @@ connect_delay = 1.00
 ### 映射配置
 
 ```toml
+[landing_gear]
+servo_ids = [4, 5, 6]
+down_raw = 500
+up_raw = 1000
+move_time_ms = 180
+
 [servos.servo4]
 id = 4
 position_step = 5
 raw_min = 0
 raw_max = 1000
-mapped_angle_at_raw_min = 240.0
-mapped_angle_at_raw_max = 0.0
+mapped_angle_at_raw_min = 0.0
+mapped_angle_at_raw_max = 1000.0
 ```
 
-如果现在已经接入第四个舵机，例如末端夹爪的 `LX15D`，可以直接在配置里保留 `id = 4` 这一段。GUI 会自动把它纳入：
+当前总线职责约定：`1/2/3` 是真实控制机械臂的三个主舵机，`4/5/6` 是简单二值起落架，默认 `500/1000` 后续再校准。GUI 会自动把配置里的舵机纳入：
 
 - 舵机快捷读取
 - 读取配置内多舵机 raw

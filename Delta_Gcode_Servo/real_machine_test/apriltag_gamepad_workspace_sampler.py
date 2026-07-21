@@ -3,7 +3,7 @@
 
 Run this on the Jetson that owns the 3K fisheye AprilTag process and the servo
 bus. The control path reuses RealTimeArmController safety checks, feedback
-anchoring, IK/FK, raw servo mapping, startup HOME flow, and tooling-servo logic.
+anchoring, IK/FK, raw servo mapping, startup HOME flow, and landing-gear handling.
 
 Sampling is added on top: press the sample button to record current servo
 feedback, FK pose, AprilTag base_T_tool pose, and the vision-minus-FK offset.
@@ -390,7 +390,7 @@ class AprilTagWorkspaceSamplerController(RealTimeArmController):
         print("")
         print("Start AprilTag workspace sampling control.")
         print("8BitDo: D-pad -> X/Y, right stick Y -> Z, A -> quit, B -> sample, START -> play last sample segment.")
-        print("X -> safe scan axis, Y -> sensor frame mode, LB/RB -> tooling servo if configured.")
+        print("X -> safe scan axis, Y -> sensor frame mode, LB/RB -> landing gear DOWN/UP on servos 4/5/6.")
         print(f"Samples: {self.sample_csv_path}")
         print(f"Full JSONL: {self.sample_jsonl_path}")
 

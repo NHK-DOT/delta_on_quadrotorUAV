@@ -1,0 +1,100 @@
+{
+  "label": "live_cpu_probe",
+  "timestamp_iso": "2026-07-08T18:21:18",
+  "timestamp_unix": 1783506078.7585335,
+  "mode": "jetson_py36_read_only_structure_calibration_sample",
+  "motion_command_state": "read_only_no_motion",
+  "vision_mode": "live_cpu",
+  "port": "/dev/ttyUSB0",
+  "hand_tag_id": 3,
+  "servo_raw": {
+    "1": 337,
+    "2": -95,
+    "3": 1021
+  },
+  "servo_mapped_physical_deg": {
+    "1": 174.0,
+    "2": 21.27659574468085,
+    "3": 227.0561797752809
+  },
+  "vision": {
+    "detection_id": 3,
+    "snapshot_age_ms": 0.0,
+    "tool_position_mm": [
+      286.30917779074935,
+      -408.9023525841562,
+      380.3660330223028
+    ],
+    "raw_detection": {
+      "id": 3,
+      "corners_px": [
+        {
+          "x": 496.0,
+          "y": 450.0
+        },
+        {
+          "x": 680.0302124023438,
+          "y": 302.9062957763672
+        },
+        {
+          "x": 834.5910034179688,
+          "y": 506.6649169921875
+        },
+        {
+          "x": 623.6116943359375,
+          "y": 658.7422485351562
+        }
+      ],
+      "center_px": {
+        "x": 658.5582275390625,
+        "y": 479.57836532592773
+      },
+      "normalized_xy": {
+        "x": -0.17680221557617187,
+        "y": -0.20599608389747065
+      },
+      "avg_side_px": 249.01873451659125,
+      "score": 310.85863340326813,
+      "position_m": {
+        "x": -0.017717133799186324,
+        "y": -0.014446723806418846,
+        "z": 0.09156127502863047
+      },
+      "orientation_matrix_column_major": [
+        0.8052016187461789,
+        -0.5732137906867637,
+        -0.15190886522861272,
+        -0.5618109274258715,
+        -0.8193808190371809,
+        0.113945404553413,
+        -0.18978628768542813,
+        -0.006404963736797711,
+        -0.9818045332173376
+      ],
+      "source_timestamp_unix": 1783506078.6801586,
+      "capture_variant": "equalize",
+      "capture_roi": {
+        "x": 80,
+        "y": 121,
+        "width": 1440,
+        "height": 1087
+      }
+    },
+    "vision_mode": "live_cpu_fullfov_capture",
+    "capture_frame": {
+      "width": 1600,
+      "height": 1208
+    },
+    "capture_pipeline": "nvarguscamerasrc sensor-id=0 sensor-mode=0 ! video/x-raw(memory:NVMM),width=3264,height=2464,framerate=21/1 ! nvvidconv interpolation-method=3 flip-method=0 ! video/x-raw,width=1600,height=1208,format=BGRx ! videoconvert ! video/x-raw,format=BGR ! appsink drop=true max-buffers=1 sync=false",
+    "intrinsics_source": "/home/nvidia/Desktop/yolo_fisheye_calibration_jetson/calibration/usable_3k_downsample_1280x960/apriltag_fullfov_1280x960_intrinsics.json",
+    "debug_image_path": "/tmp/structure_calibration_probe/live_cpu_debug/live_cpu_probe_capture.jpg",
+    "debug_overlay_path": "/tmp/structure_calibration_probe/live_cpu_debug/live_cpu_probe_overlay.jpg"
+  },
+  "geometry": {},
+  "sources": {
+    "servo_config": "/home/nvidia/Desktop/78arm/lx225_tool_demo/config/lx225_tool.demo.toml",
+    "base_camera_snapshot": "/home/nvidia/Desktop/yolo_fisheye_calibration_jetson/output/apriltag_latest_jetson.json",
+    "apriltag_intrinsics": "/home/nvidia/Desktop/yolo_fisheye_calibration_jetson/calibration/usable_3k_downsample_1280x960/apriltag_fullfov_1280x960_intrinsics.json",
+    "calibration": "/home/nvidia/Desktop/78arm/Dual_Camera_HandEye/output/calibration_result.json"
+  }
+}

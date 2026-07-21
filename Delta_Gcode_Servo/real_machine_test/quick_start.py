@@ -4,6 +4,7 @@ quick_start.py - 快速启动实机测试工具
 """
 
 import sys
+import subprocess
 from pathlib import Path
 
 # 添加上级目录到 Python 路径
@@ -31,9 +32,21 @@ if __name__ == "__main__":
         try:
             if module == "servo_calibration":
                 from servo_calibration import main
+                main()
             else:  # gamepad_controller
-                from gamepad_controller import main
-            main()
+                project_root = Path(__file__).resolve().parents[2]
+                venv_python = project_root / ".venv" / "Scripts" / "python.exe"
+                python_exe = str(venv_python if venv_python.exists() else Path(sys.executable))
+                subprocess.run(
+                    [
+                        python_exe,
+                        str(Path(__file__).with_name("gamepad_controller.py")),
+                        "--port",
+                        "COM19",
+                        "--start-from-current",
+                        "--slow-start",
+                    ]
+                )
         except ImportError as e:
             print(f"\n❌ 导入失败: {e}")
             print("请确保在 real_machine_test 目录下运行此脚本")

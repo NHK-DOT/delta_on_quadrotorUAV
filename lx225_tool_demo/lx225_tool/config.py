@@ -21,6 +21,14 @@ class SerialConfig:
 
 
 @dataclass(frozen=True)
+class LandingGearConfig:
+    servo_ids: tuple[int, ...] = (4, 5, 6)
+    down_raw: int = 500
+    up_raw: int = 1000
+    move_time_ms: int = 180
+
+
+@dataclass(frozen=True)
 class ServoProfile:
     name: str
     id: int
@@ -33,6 +41,7 @@ class ServoProfile:
 class AppConfig:
     serial: SerialConfig
     defaults_position_step: int
+    landing_gear: LandingGearConfig
     servos: dict[str, ServoProfile]
     source_path: Path
 
@@ -65,6 +74,18 @@ def load_config(path: str | Path) -> AppConfig:
     )
 
     default_step = int(defaults_data.get("position_step", 1))
+    landing_gear_data = data.get("landing_gear", {})
+    if not isinstance(landing_gear_data, dict):
+        landing_gear_data = {}
+    landing_gear_ids_raw = landing_gear_data.get("servo_ids", [4, 5, 6])
+    if not isinstance(landing_gear_ids_raw, list):
+        landing_gear_ids_raw = [4, 5, 6]
+    landing_gear_cfg = LandingGearConfig(
+        servo_ids=tuple(int(value) for value in landing_gear_ids_raw),
+        down_raw=int(landing_gear_data.get("down_raw", 500)),
+        up_raw=int(landing_gear_data.get("up_raw", 1000)),
+        move_time_ms=int(landing_gear_data.get("move_time_ms", 180)),
+    )
     servo_section = data.get("servos", {})
     if not servo_section:
         raise ValueError("No [servos.*] entries found in config")
@@ -89,6 +110,7 @@ def load_config(path: str | Path) -> AppConfig:
     return AppConfig(
         serial=serial_cfg,
         defaults_position_step=default_step,
+        landing_gear=landing_gear_cfg,
         servos=servos,
         source_path=source_path,
     )
@@ -127,6 +149,15 @@ def format_config_text(config: AppConfig) -> str:
         "[defaults]",
         "# 全局默认量化步长。",
         f"position_step = {config.defaults_position_step}",
+        "",
+        "# Current real-machine role split:",
+        "# - servos 1/2/3 are the arm actuators controlled by IK/FK.",
+        "# - servos 4/5/6 are a simple two-position retractable landing gear.",
+        "[landing_gear]",
+        f"servo_ids = [{', '.join(str(value) for value in config.landing_gear.servo_ids)}]",
+        f"down_raw = {config.landing_gear.down_raw}",
+        f"up_raw = {config.landing_gear.up_raw}",
+        f"move_time_ms = {config.landing_gear.move_time_ms}",
         "",
     ]
 
@@ -171,6 +202,7 @@ def build_updated_config(config: AppConfig, profile: ServoProfile) -> AppConfig:
     return AppConfig(
         serial=config.serial,
         defaults_position_step=config.defaults_position_step,
+        landing_gear=config.landing_gear,
         servos=servos,
         source_path=config.source_path,
     )

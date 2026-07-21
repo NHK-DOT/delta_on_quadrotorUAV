@@ -34,6 +34,15 @@ connect_delay = 1.00
 # 如果某个舵机没有单独写 `position_step`，就用这里的默认值。
 position_step = 4
 
+# Current real-machine role split:
+# - servos 1/2/3 are the arm actuators controlled by IK/FK.
+# - servos 4/5/6 are a simple two-position retractable landing gear.
+[landing_gear]
+servo_ids = [4, 5, 6]
+down_raw = 500
+up_raw = 1000
+move_time_ms = 180
+
 [servos.servo1]
 # 逻辑名字。
 # `servo1` 只是示例名，后面可以改成更有意义的名字，
@@ -48,13 +57,13 @@ position_step = 4
 
 # 你希望这个舵机在“自定义映射”里采用的原始最小值。
 # 这不一定等于舵机内部限位，它只是映射参考范围。
-raw_min = 0
+raw_min = -40
 
 # 你希望这个舵机在“自定义映射”里采用的原始最大值。
-raw_max = 1000
-
-home_raw = 750
-startup_check_raw = 750
+raw_max = 480
+home_raw = 459
+# 2026-07-08 labeled raw summary median for bottom_safe
+startup_check_raw = -14
 
 # 当原始值等于 raw_min 时，对应你定义的角度值。
 # 当前主线映射用 0..1000 坐标，raw=0 对应 0。
@@ -68,10 +77,11 @@ mapped_angle_at_raw_max = 1000.0
 # 第二个舵机示例。
 id = 2
 position_step = 4
-raw_min = 0
-raw_max = 1000
-home_raw = 762
-startup_check_raw = 762
+raw_min = -220
+raw_max = 1190
+home_raw = 48
+# 2026-07-08 labeled raw summary median for bottom_safe
+startup_check_raw = 1120
 mapped_angle_at_raw_min = 0.0
 mapped_angle_at_raw_max = 1000.0
 
@@ -79,10 +89,11 @@ mapped_angle_at_raw_max = 1000.0
 # 第三个舵机示例。
 id = 3
 position_step = 4
-raw_min = 0
-raw_max = 1000
-home_raw = 758
-startup_check_raw = 758
+raw_min = 600
+raw_max = 1045
+home_raw = 1021
+# 2026-07-08 labeled raw summary median for bottom_safe
+startup_check_raw = 622
 mapped_angle_at_raw_min = 0.0
 mapped_angle_at_raw_max = 1000.0
 
@@ -92,5 +103,21 @@ id = 4
 position_step = 5
 raw_min = 0
 raw_max = 1000
-mapped_angle_at_raw_min = 240.0
-mapped_angle_at_raw_max = 0.0
+mapped_angle_at_raw_min = 0.0
+mapped_angle_at_raw_max = 1000.0
+
+[servos.servo5]
+id = 5
+position_step = 5
+raw_min = 0
+raw_max = 1000
+mapped_angle_at_raw_min = 0.0
+mapped_angle_at_raw_max = 1000.0
+
+[servos.servo6]
+id = 6
+position_step = 5
+raw_min = 0
+raw_max = 1000
+mapped_angle_at_raw_min = 0.0
+mapped_angle_at_raw_max = 1000.0
